@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ARKIVE - Guardou, Achou!</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a202c;
+            color: white;
+            height: 100vh;
+        }
+        
+        .header {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem 2rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+        
+        .user-info {
+            display: none;
+            font-size: 0.9rem;
+            opacity: 0.8;
+        }
+        
+        .main {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .welcome {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .welcome h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .welcome p {
+            opacity: 0.7;
+            font-size: 1.1rem;
+        }
+        
+        .actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+        
+        .btn {
+            padding: 0.8rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1.5rem;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: #3b82f6;
+        }
+        
+        .stat-label {
+            opacity: 0.8;
+            margin-top: 0.5rem;
+        }
+        
+        .status {
+            background: rgba(255, 255, 255, 0.05);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            margin-top: 2rem;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .documents-list {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-top: 2rem;
+        }
+        
+        .doc-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            margin-bottom: 0.5rem;
+        }
+        
+        .doc-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .btn-small {
+            padding: 0.3rem 0.8rem;
+            font-size: 0.8rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">ARKIVE</div>
+        <div class="user-info" id="userInfo">
+            Usuário: <span id="currentUser">-</span>
+            <button class="btn btn-small btn-secondary" onclick="logout()" style="margin-left: 1rem;">Sair</button>
+        </div>
+    </div>
+
+    <div class="main">
+        <div id="loginView">
+            <div class="welcome">
+                <h1>Bem-vindo ao ARKIVE</h1>
+                <p>Sistema de Gerenciamento de Documentos Desktop</p>
+            </div>
+            
+            <div class="actions">
+                <button class="btn btn-primary" onclick="showLogin()">Entrar</button>
+                <button class="btn btn-secondary" onclick="showRegister()">Registrar</button>
+            </div>
+        </div>
+
+        <div id="dashboardView" class="hidden">
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number" id="totalDocs">0</div>
+                    <div class="stat-label">Total de Documentos</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="uploadsToday">0</div>
+                    <div class="stat-label">Uploads Hoje</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="totalSize">0 MB</div>
+                    <div class="stat-label">Tamanho Total</div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-primary" onclick="uploadDocuments()">Adicionar Documentos</button>
+                <button class="btn btn-secondary" onclick="createBackup()">Criar Backup</button>
+                <button class="btn btn-secondary" onclick="refreshData()">Atualizar</button>
+            </div>
+
+            <div class="documents-list">
+                <h3 style="margin-bottom: 1rem;">Documentos Recentes</h3>
+                <div id="documentsList">
+                    <div style="text-align: center; opacity: 0.5; padding: 2rem;">
+                        Nenhum documento encontrado
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="status" id="status">
+            Sistema pronto para uso
+        </div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        
+        // Inicialização
+        window.addEventListener('DOMContentLoaded', async () => {
+            if (window.__TAURI__) {
+                document.getElementById('status').innerHTML = '✅ ARKIVE Desktop carregado com sucesso!';
+                await checkCurrentUser();
+            } else {
+                document.getElementById('status').innerHTML = '⚠️ Executar via Tauri para funcionalidade completa';
+            }
+        });
+
+        // Verificar usuário atual
+        async function checkCurrentUser() {
+            try {
+                const response = await window.__TAURI__.invoke('get_current_user');
+                if (response.authenticated) {
+                    currentUser = response.user;
+                    showDashboard();
+                }
+            } catch (error) {
+                console.log('Nenhum usuário logado');
+            }
+        }
+
+        // Mostrar login
+        function showLogin() {
+            const username = prompt('Nome de usuário:');
+            const password = prompt('Senha:');
+            
+            if (username && password) {
+                login(username, password);
+            }
+        }
+
+        // Mostrar registro
+        function showRegister() {
+            const username = prompt('Novo nome de usuário:');
+            const password = prompt('Nova senha:');
+            
+            if (username && password) {
+                register(username, password);
+            }
+        }
+
+        // Login
+        async function login(username, password) {
+            try {
+                const response = await window.__TAURI__.invoke('login_user', {
+                    request: { username, password }
+                });
+                
+                if (response.success) {
+                    currentUser = response.user;
+                    showDashboard();
+                    document.getElementById('status').innerHTML = '✅ Login realizado com sucesso!';
+                } else {
+                    alert('Erro no login: ' + response.error);
+                }
+            } catch (error) {
+                alert('Erro: ' + error);
+            }
+        }
+
+        // Registro
+        async function register(username, password) {
+            try {
+                const response = await window.__TAURI__.invoke('register_user', {
+                    request: { username, password }
+                });
+                
+                if (response.success) {
+                    alert('Usuário registrado com sucesso! Faça login.');
+                    document.getElementById('status').innerHTML = '✅ Registro realizado com sucesso!';
+                } else {
+                    alert('Erro no registro: ' + response.error);
+                }
+            } catch (error) {
+                alert('Erro: ' + error);
+            }
+        }
+
+        // Logout
+        async function logout() {
+            try {
+                await window.__TAURI__.invoke('logout_user');
+                currentUser = null;
+                showLogin();
+                document.getElementById('status').innerHTML = 'Logout realizado';
+            } catch (error) {
+                console.error('Erro no logout:', error);
+            }
+        }
+
+        // Mostrar dashboard
+        function showDashboard() {
+            document.getElementById('loginView').classList.add('hidden');
+            document.getElementById('dashboardView').classList.remove('hidden');
+            document.getElementById('userInfo').style.display = 'block';
+            document.getElementById('currentUser').textContent = currentUser?.username || 'N/A';
+            
+            refreshData();
+        }
+
+        // Atualizar dados
+        async function refreshData() {
+            try {
+                // Carregar estatísticas
+                const stats = await window.__TAURI__.invoke('get_stats');
+                document.getElementById('totalDocs').textContent = stats.total_documents;
+                document.getElementById('uploadsToday').textContent = stats.uploads_today;
+                document.getElementById('totalSize').textContent = stats.total_size;
+
+                // Carregar documentos
+                const documents = await window.__TAURI__.invoke('get_documents');
+                displayDocuments(documents);
+            } catch (error) {
+                document.getElementById('status').innerHTML = '⚠️ Erro ao carregar dados: ' + error;
+            }
+        }
+
+        // Exibir documentos
+        function displayDocuments(documents) {
+            const container = document.getElementById('documentsList');
+            
+            if (!documents || documents.length === 0) {
+                container.innerHTML = '<div style="text-align: center; opacity: 0.5; padding: 2rem;">Nenhum documento encontrado</div>';
+                return;
+            }
+
+            container.innerHTML = documents.map(doc => `
+                <div class="doc-item">
+                    <div>
+                        <strong>${doc.name}</strong>
+                        <div style="font-size: 0.8rem; opacity: 0.7;">${doc.file_type} - ${formatBytes(doc.size)}</div>
+                    </div>
+                    <div class="doc-actions">
+                        <button class="btn btn-small btn-secondary" onclick="deleteDocument('${doc.id}')">Remover</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Upload de documentos
+        async function uploadDocuments() {
+            try {
+                const files = await window.__TAURI__.invoke('open_file_dialog');
+                
+                for (const filePath of files) {
+                    const fileName = filePath.split('\\').pop() || filePath.split('/').pop();
+                    
+                    await window.__TAURI__.invoke('upload_document', {
+                        request: {
+                            name: fileName,
+                            file_path: filePath,
+                            category: 'Geral'
+                        }
+                    });
+                }
+                
+                document.getElementById('status').innerHTML = `✅ ${files.length} documento(s) adicionado(s)!`;
+                refreshData();
+            } catch (error) {
+                alert('Erro no upload: ' + error);
+            }
+        }
+
+        // Deletar documento
+        async function deleteDocument(docId) {
+            if (confirm('Remover este documento?')) {
+                try {
+                    await window.__TAURI__.invoke('delete_document', { documentId: docId });
+                    document.getElementById('status').innerHTML = '✅ Documento removido!';
+                    refreshData();
+                } catch (error) {
+                    alert('Erro ao remover: ' + error);
+                }
+            }
+        }
+
+        // Criar backup
+        async function createBackup() {
+            try {
+                const backupPath = await window.__TAURI__.invoke('save_backup_dialog');
+                if (backupPath) {
+                    await window.__TAURI__.invoke('create_backup', { backupPath });
+                    document.getElementById('status').innerHTML = '✅ Backup criado com sucesso!';
+                }
+            } catch (error) {
+                alert('Erro no backup: ' + error);
+            }
+        }
+
+        // Formatar bytes
+        function formatBytes(bytes) {
+            if (bytes === 0) return '0 B';
+            const k = 1024;
+            const sizes = ['B', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        }
+
+        // Mostrar tela de login inicialmente
+        function showLogin() {
+            document.getElementById('loginView').classList.remove('hidden');
+            document.getElementById('dashboardView').classList.add('hidden');
+            document.getElementById('userInfo').style.display = 'none';
+        }
+    </script>
+</body>
+</html>

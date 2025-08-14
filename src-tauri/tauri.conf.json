@@ -1,11 +1,12 @@
 {
+  "$schema": "https://schema.tauri.app/config/2",
   "productName": "ARKIVE - Guardou, Achou!",
   "version": "1.0.0",
   "identifier": "com.arkive.app",
   "build": {
     "beforeBuildCommand": "",
     "beforeDevCommand": "",
-    "frontendDist": "../src",
+    "frontendDist": "../dist",
     "devUrl": "http://localhost:1420"
   },
   "app": {
@@ -20,7 +21,10 @@
         "resizable": true,
         "fullscreen": false
       }
-    ]
+    ],
+    "security": {
+      "csp": null
+    }
   },
   "bundle": {
     "active": true,
@@ -28,7 +32,7 @@
     "category": "Productivity",
     "icon": [
       "icons/32x32.png",
-      "icons/128x128.png",
+      "icons/128x128.png", 
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
@@ -36,20 +40,14 @@
     "shortDescription": "Sistema de gerenciamento de documentos empresarial",
     "longDescription": "Sistema inteligente de gerenciamento de documentos"
   },
-  "allowlist": {
-    "all": false,
+  "plugins": {
     "shell": {
-      "all": false,
       "open": true
     },
     "fs": {
-      "all": false,
-      "readFile": true,
-      "writeFile": true,
-      "scope": ["$APPDATA", "$RESOURCE", "$APP", "$LOG", "$TEMP"]
+      "scope": ["$APPDATA/**", "$RESOURCE/**", "$APP/**", "$LOG/**", "$TEMP/**"]
     },
     "dialog": {
-      "all": false,
       "open": true,
       "save": true
     },

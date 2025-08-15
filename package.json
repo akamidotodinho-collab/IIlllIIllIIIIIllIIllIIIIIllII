@@ -1,6 +1,7 @@
 {
   "name": "arkive-desktop",
   "version": "1.0.0",
+  "type": "module",
   "description": "Sistema inteligente de gerenciamento de documentos desktop",
   "main": "src/main.tsx",
   "scripts": {

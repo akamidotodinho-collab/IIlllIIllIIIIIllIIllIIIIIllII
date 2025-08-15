@@ -48,23 +48,11 @@
       },
       "allowDowngrades": false,
       "wix": {
-        "language": ["pt-BR", "en-US"],
-        "template": "main.wxs"
+        "language": ["pt-BR", "en-US"]
       },
       "nsis": {
-        "displayLanguageSelector": true,
-        "languages": ["Portuguese", "English"],
-        "template": "installer.nsi",
-        "preRequisites": [
-          {
-            "name": "Microsoft Visual C++ 2022 Redistributable",
-            "url": "https://aka.ms/vs/17/release/vc_redist.x64.exe"
-          },
-          {
-            "name": "Microsoft Edge WebView2",
-            "url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
-          }
-        ]
+        "displayLanguageSelector": false,
+        "languages": ["English"]
       }
     }
   },

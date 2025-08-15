@@ -26,13 +26,13 @@ jobs:
       with:
         toolchain: 1.89
 
+    - name: Rust cache
+      uses: swatinem/rust-cache@v2
+      with:
+        workspaces: "./src-tauri -> target"
+
     - name: Build Tauri app
-      run: |
-        cd src-tauri
-        cargo build --release
-      
-    - name: Build frontend
-      run: npm run build
+      run: npm run tauri build
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
@@ -40,4 +40,4 @@ jobs:
         name: arkive-desktop-windows
         path: |
           src-tauri/target/release/arkive.exe
-          dist/
+          src-tauri/target/release/bundle/**

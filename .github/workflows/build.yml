@@ -18,14 +18,6 @@ jobs:
       with:
         node-version: '18'
 
-    - name: Install Chocolatey packages
-      run: |
-        Set-ExecutionPolicy Bypass -Scope Process -Force
-        iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-        choco install vcredist2022 -y
-        choco install webview2 -y
-      shell: powershell
-
     - name: Install Node.js dependencies
       run: npm install
 
@@ -42,30 +34,77 @@ jobs:
       with:
         workspaces: "./src-tauri -> target"
 
-    - name: Download WebView2 Runtime for bundling
+    - name: Download dependencies for bundling
       run: |
-        Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "MicrosoftEdgeWebview2Setup.exe"
+        # Download Visual C++ Redistributable 2022
         Invoke-WebRequest -Uri "https://aka.ms/vs/17/release/vc_redist.x64.exe" -OutFile "vc_redist.x64.exe"
+        
+        # Download WebView2 Runtime
+        Invoke-WebRequest -Uri "https://go.microsoft.com/fwlink/p/?LinkId=2124703" -OutFile "MicrosoftEdgeWebview2Setup.exe"
+        
+        # Verify downloads
+        if (Test-Path "vc_redist.x64.exe") { Write-Host "✅ VC++ Redistributable downloaded" }
+        if (Test-Path "MicrosoftEdgeWebview2Setup.exe") { Write-Host "✅ WebView2 Runtime downloaded" }
       shell: powershell
 
     - name: Build Tauri app with all bundles
       run: npm run tauri build -- --bundles msi nsis
 
-    - name: Create distribution package
+    - name: Create complete distribution package
       run: |
+        # Create distribution folder
         mkdir dist-package
+        
+        # Copy Tauri installers
         copy "src-tauri\target\release\bundle\msi\*.msi" "dist-package\"
         copy "src-tauri\target\release\bundle\nsis\*.exe" "dist-package\"
-        copy "MicrosoftEdgeWebview2Setup.exe" "dist-package\"
+        
+        # Copy dependencies
         copy "vc_redist.x64.exe" "dist-package\"
-        echo "ARKIVE Desktop - Sistema de Gerenciamento de Documentos" > "dist-package\README.txt"
-        echo "" >> "dist-package\README.txt"
-        echo "Para instalar:" >> "dist-package\README.txt"
-        echo "1. Execute primeiro: vc_redist.x64.exe" >> "dist-package\README.txt"
-        echo "2. Execute depois: MicrosoftEdgeWebview2Setup.exe" >> "dist-package\README.txt"
-        echo "3. Execute por ultimo: ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe" >> "dist-package\README.txt"
-        echo "" >> "dist-package\README.txt"
-        echo "Ou use o instalador MSI que pode instalar tudo automaticamente." >> "dist-package\README.txt"
+        copy "MicrosoftEdgeWebview2Setup.exe" "dist-package\"
+        
+        # Create installation script
+        echo @echo off > "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo ========================================= >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo    ARKIVE - Instalacao Automatica >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo ========================================= >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo. >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo [1/3] Instalando Visual C++ 2022... >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo vc_redist.x64.exe /quiet /norestart >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo. >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo [2/3] Instalando WebView2 Runtime... >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo MicrosoftEdgeWebview2Setup.exe /silent /install >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo. >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo [3/3] Instalando ARKIVE... >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo for %%%%f in (*.exe) do if not "%%%%f"=="vc_redist.x64.exe" if not "%%%%f"=="MicrosoftEdgeWebview2Setup.exe" "%%%%f" /S >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo. >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo ========================================= >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo    INSTALACAO CONCLUIDA! >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo echo ========================================= >> "dist-package\INSTALAR-COMPLETO.bat"
+        echo pause >> "dist-package\INSTALAR-COMPLETO.bat"
+        
+        # Create README in Portuguese
+        echo ARKIVE Desktop - Sistema de Gerenciamento de Documentos > "dist-package\LEIA-ME.txt"
+        echo ============================================================== >> "dist-package\LEIA-ME.txt"
+        echo. >> "dist-package\LEIA-ME.txt"
+        echo OPCAO 1 - INSTALACAO AUTOMATICA (RECOMENDADO): >> "dist-package\LEIA-ME.txt"
+        echo   Execute: INSTALAR-COMPLETO.bat >> "dist-package\LEIA-ME.txt"
+        echo   - Instala todas as dependencias automaticamente >> "dist-package\LEIA-ME.txt"
+        echo   - Processo completo em 5-10 minutos >> "dist-package\LEIA-ME.txt"
+        echo. >> "dist-package\LEIA-ME.txt"
+        echo OPCAO 2 - INSTALACAO MANUAL: >> "dist-package\LEIA-ME.txt"
+        echo   1. Execute: vc_redist.x64.exe >> "dist-package\LEIA-ME.txt"
+        echo   2. Execute: MicrosoftEdgeWebview2Setup.exe >> "dist-package\LEIA-ME.txt"
+        echo   3. Execute: ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe >> "dist-package\LEIA-ME.txt"
+        echo. >> "dist-package\LEIA-ME.txt"
+        echo OPCAO 3 - INSTALADOR MSI (ALTERNATIVO): >> "dist-package\LEIA-ME.txt"
+        echo   Execute: ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi >> "dist-package\LEIA-ME.txt"
+        echo   - Pode detectar dependencias automaticamente >> "dist-package\LEIA-ME.txt"
+        echo. >> "dist-package\LEIA-ME.txt"
+        echo IMPORTANTE: >> "dist-package\LEIA-ME.txt"
+        echo - Se as dependencias ja estiverem instaladas, serao ignoradas >> "dist-package\LEIA-ME.txt"
+        echo - Requer Windows 10/11 com permissoes de administrador >> "dist-package\LEIA-ME.txt"
+        echo - Antivirus pode solicitar confirmacao (e normal) >> "dist-package\LEIA-ME.txt"
       shell: cmd
 
     - name: Upload complete distribution package
@@ -74,10 +113,10 @@ jobs:
         name: arkive-desktop-complete-package
         path: dist-package/
 
-    - name: Upload individual artifacts
+    - name: Upload individual installers
       uses: actions/upload-artifact@v4
       with:
-        name: arkive-desktop-installers
+        name: arkive-desktop-installers-only
         path: |
           src-tauri/target/release/bundle/msi/*.msi
           src-tauri/target/release/bundle/nsis/*.exe

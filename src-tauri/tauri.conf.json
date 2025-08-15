@@ -28,7 +28,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": ["msi", "nsis"],
     "category": "Productivity",
     "icon": [
       "icons/32x32.png",
@@ -38,7 +38,35 @@
       "icons/icon.ico"
     ],
     "shortDescription": "Sistema de gerenciamento de documentos empresarial",
-    "longDescription": "Sistema inteligente de gerenciamento de documentos"
+    "longDescription": "Sistema inteligente de gerenciamento de documentos com interface moderna e funcionalidades avançadas",
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "allowDowngrades": false,
+      "wix": {
+        "language": ["pt-BR", "en-US"],
+        "template": "main.wxs"
+      },
+      "nsis": {
+        "displayLanguageSelector": true,
+        "languages": ["Portuguese", "English"],
+        "template": "installer.nsi",
+        "preRequisites": [
+          {
+            "name": "Microsoft Visual C++ 2022 Redistributable",
+            "url": "https://aka.ms/vs/17/release/vc_redist.x64.exe"
+          },
+          {
+            "name": "Microsoft Edge WebView2",
+            "url": "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
+          }
+        ]
+      }
+    }
   },
   "plugins": {
     "shell": {

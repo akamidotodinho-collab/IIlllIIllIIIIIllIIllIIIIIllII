@@ -1,12 +1,12 @@
 [package]
 name = "app"
 version = "0.1.0"
-description = "ARKIVE - Sistema inteligente de gerenciamento de documentos"
-authors = ["akamidotodinho-collab"]
-license = "MIT"
+description = "A Tauri App"
+authors = ["you"]
+license = ""
 repository = ""
 edition = "2021"
-rust-version = "1.82"
+rust-version = "1.77"
 
 [lib]
 name = "app_lib"
@@ -18,22 +18,18 @@ tauri-build = { version = "2.0", features = [] }
 [dependencies]
 serde_json = "1.0"
 serde = { version = "1.0", features = ["derive"] }
-tauri = { version = "2.0", features = [] }
+tauri = { version = "2.0", features = ["shell-open", "dialog-open", "fs-read-file", "notification-all"] }
 tauri-plugin-shell = "2.0"
+tauri-plugin-dialog = "2.0" 
 tauri-plugin-fs = "2.0"
-tauri-plugin-dialog = "2.0"
 tauri-plugin-notification = "2.0"
-tokio = { version = "1.40", features = ["full"] }
-bcrypt = "0.15"
+tokio = { version = "1.20", features = ["full"] }
+bcrypt = "0.13"
 chrono = { version = "0.4", features = ["serde"] }
 uuid = { version = "1.0", features = ["v4", "serde"] }
-dirs = "5.0"
+dirs = "4.0"
 log = "0.4"
-rusqlite = { version = "0.32", features = ["bundled", "chrono", "uuid"] }
-sqlx = { version = "0.8", features = ["runtime-tokio-rustls", "sqlite", "chrono", "uuid"] }
-image = { version = "0.25", features = ["png", "jpeg"] }
-pdf = "0.9"
-zip = "2.0"
+env_logger = "0.11"
+rusqlite = { version = "0.28", features = ["bundled", "chrono", "uuid"] }
+zip = "0.6"
 flate2 = "1.0"
-anyhow = "1.0"
-thiserror = "1.0"

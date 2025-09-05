@@ -35,18 +35,18 @@ jobs:
       with:
         toolchain: 1.89
 
-    - name: Install cargo-audit (with fallback)
-      run: cargo install cargo-audit || cargo audit --version
-
-    - name: Security audit (Rust)
-  working-directory: src-tauri
-  run: cargo audit
-
-
     - name: Rust cache
       uses: swatinem/rust-cache@v2
       with:
         workspaces: "./src-tauri -> target"
+
+    - name: Install cargo-audit (with fallback)
+      working-directory: src-tauri
+      run: cargo install cargo-audit || cargo audit --version
+
+    - name: Security audit (Rust)
+      working-directory: src-tauri
+      run: cargo audit
 
     - name: Set signing status
       run: |

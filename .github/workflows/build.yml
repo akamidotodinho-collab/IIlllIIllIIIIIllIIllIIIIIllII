@@ -38,8 +38,10 @@ jobs:
     - name: Install cargo-audit (with fallback)
       run: cargo install cargo-audit || cargo audit --version
 
-    - name: Security audit (Rust)
-      run: cargo audit
+ - name: Security audit (Rust)
+  working-directory: src-tauri
+  run: cargo audit
+
 
     - name: Rust cache
       uses: swatinem/rust-cache@v2

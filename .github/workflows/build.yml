@@ -38,7 +38,7 @@ jobs:
     - name: Install cargo-audit (with fallback)
       run: cargo install cargo-audit || cargo audit --version
 
- - name: Security audit (Rust)
+    - name: Security audit (Rust)
   working-directory: src-tauri
   run: cargo audit
 

@@ -46,6 +46,15 @@ jobs:
       with:
         workspaces: "./src-tauri -> target"
 
+    - name: Set signing status
+      run: |
+        if [ -n "${{ secrets.WINDOWS_CERT_P12_BASE64 }}" ]; then
+          echo "SIGN_STATUS=Assinados digitalmente" >> $GITHUB_ENV
+        else
+          echo "SIGN_STATUS=Nao assinados" >> $GITHUB_ENV
+        fi
+      shell: bash
+
     - name: Validate signing requirements for releases
       if: github.event_name == 'release'
       run: |
@@ -53,7 +62,7 @@ jobs:
           Write-Error "ERRO: Release requer assinatura digital - configure WINDOWS_CERT_P12_BASE64"
           exit 1
         }
-        Write-Output "✅ Certificado de assinatura encontrado"
+        Write-Output "Certificado de assinatura encontrado"
       shell: powershell
 
     - name: Install Tauri CLI
@@ -68,71 +77,63 @@ jobs:
     - name: Sign Windows executables
       if: github.event_name == 'release'
       run: |
-        # Decodificar certificado
         $certBytes = [System.Convert]::FromBase64String("${{ secrets.WINDOWS_CERT_P12_BASE64 }}")
         [System.IO.File]::WriteAllBytes("cert.p12", $certBytes)
         
-        # Assinar todos os executáveis
         Get-ChildItem -Path "src-tauri\target\release\bundle\" -Recurse -Include "*.exe","*.msi" | ForEach-Object {
-          Write-Output "🔐 Assinando: $($_.Name)"
+          Write-Output "Assinando: $($_.Name)"
           & signtool sign /f cert.p12 /p "${{ secrets.WINDOWS_CERT_PASSWORD }}" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "$($_.FullName)"
           if ($LASTEXITCODE -ne 0) {
-            Write-Error "❌ Falha ao assinar $($_.Name)"
+            Write-Error "Falha ao assinar $($_.Name)"
             exit 1
           }
-          Write-Output "✅ $($_.Name) assinado com sucesso"
+          Write-Output "$($_.Name) assinado com sucesso"
         }
         
-        # Remover certificado
         Remove-Item cert.p12
-        Write-Output "🔒 Certificado removido do ambiente"
+        Write-Output "Certificado removido do ambiente"
       shell: powershell
 
     - name: Create release package
       run: |
         mkdir release-package
-        # Copiar executáveis
         Get-ChildItem -Path "src-tauri\target\release\bundle\msi\*.msi" | Copy-Item -Destination "release-package\"
         Get-ChildItem -Path "src-tauri\target\release\bundle\nsis\*.exe" | Copy-Item -Destination "release-package\"
         
-        # Status da assinatura
-        $isSignedText = if ("${{ secrets.WINDOWS_CERT_P12_BASE64 }}" -ne "") { "✅ ASSINADOS DIGITALMENTE" } else { "⚠️ NÃO ASSINADOS" }
-        
-        # Criar arquivo de instruções
         @"
-🚀 ARKIVE Desktop - Instalador Profissional
-==========================================
+        ARKIVE Desktop - Instalador Profissional
+        ==========================================
 
-📦 OPÇÕES DE INSTALAÇÃO:
+        OPCOES DE INSTALACAO:
 
-OPÇÃO 1: Instalador NSIS (Recomendado)
-- Execute: ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe
-- ✅ Instalação automática com todas as dependências
+        OPCAO 1: Instalador NSIS (Recomendado)
+        - Execute: ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe
+        - Instalacao automatica com todas as dependencias
 
-OPÇÃO 2: Instalador MSI (Windows corporativo)
-- Execute: ARKIVE - Guardou, Achou!_1.0.0_x64.msi
-- ✅ Para ambientes corporativos com GPO
+        OPCAO 2: Instalador MSI (Windows corporativo)
+        - Execute: ARKIVE - Guardou, Achou!_1.0.0_x64.msi
+        - Para ambientes corporativos com GPO
 
-🔧 REQUISITOS MÍNIMOS:
-- Windows 10 versão 1903 ou superior
-- WebView2 Runtime (instalado automaticamente)
-- 100 MB de espaço livre
+        REQUISITOS MINIMOS:
+        - Windows 10 versao 1903 ou superior
+        - WebView2 Runtime (instalado automaticamente)
+        - 100 MB de espaco livre
 
-🔒 SEGURANÇA:
-- Executáveis: $isSignedText
-- ✅ Auditoria de segurança aprovada
-- ✅ Código-fonte verificável em GitHub
-- ✅ Dados locais criptografados
-- ✅ Sem dependências externas em runtime
+        SEGURANCA:
+        - Executaveis: ${{ env.SIGN_STATUS }}
+        - Auditoria de seguranca aprovada
+        - Codigo-fonte verificavel em GitHub
+        - Dados locais criptografados
+        - Sem dependencias externas em runtime
 
-📊 DADOS LOCAIS:
-- 🔐 SQLite com bcrypt
-- 👤 Dados isolados por usuário
-- 💾 Backup automático local
+        DADOS LOCAIS:
+        - SQLite com bcrypt
+        - Dados isolados por usuario
+        - Backup automatico local
 
-Build: #${{ github.run_number }}
-Versão: 1.0.0
-"@ | Out-File -FilePath "release-package\LEIA-ME.txt" -Encoding UTF8
+        Build: #${{ github.run_number }}
+        Versao: 1.0.0
+        "@ | Out-File -FilePath "release-package\LEIA-ME.txt" -Encoding UTF8
       shell: powershell
 
     - name: Upload build artifacts
@@ -148,33 +149,33 @@ Versão: 1.0.0
       with:
         files: release-package/*
         tag_name: ${{ github.ref_name }}
-        name: 🚀 ARKIVE Desktop v${{ github.ref_name }}
+        name: ARKIVE Desktop v${{ github.ref_name }}
         body: |
-          ## 🏆 ARKIVE Desktop - Release Oficial
+          ## ARKIVE Desktop - Release Oficial
           
-          ### 🔒 Segurança Enterprise Verificada
-          - ✅ **Auditoria completa**: 0 CVEs críticos encontrados
-          - ✅ **Executáveis assinados**: Certificado digital válido
-          - ✅ **Dados criptografados**: SQLite + bcrypt
-          - ✅ **Permissões mínimas**: Acesso restrito
-          - ✅ **CSP rigoroso**: Proteção contra XSS
+          ### Seguranca Enterprise Verificada
+          - Auditoria completa: 0 CVEs criticos encontrados
+          - Executaveis: ${{ env.SIGN_STATUS }}
+          - Dados criptografados: SQLite + bcrypt
+          - Permissoes minimas: Acesso restrito
+          - CSP rigoroso: Protecao contra XSS
           
-          ### 📦 Instaladores Disponíveis
-          - **🎯 NSIS Setup**: Instalação automática (recomendado)
-          - **🏢 MSI Package**: Para ambientes corporativos
+          ### Instaladores Disponiveis
+          - NSIS Setup: Instalacao automatica (recomendado)
+          - MSI Package: Para ambientes corporativos
           
-          ### 🚀 Funcionalidades
-          - 📁 Gestão completa de documentos
-          - 🔐 Multi-usuário com isolamento de dados
-          - 🎨 Interface moderna (claro/escuro)
-          - ⚡ Performance otimizada (Rust + Tauri)
-          - 💾 Backup automático criptografado
-          - 🔍 Busca avançada por conteúdo
+          ### Funcionalidades
+          - Gestao completa de documentos
+          - Multi-usuario com isolamento de dados
+          - Interface moderna (claro/escuro)
+          - Performance otimizada (Rust + Tauri)
+          - Backup automatico criptografado
+          - Busca avancada por conteudo
           
-          ### 📋 Requisitos
-          - Windows 10 versão 1903+
+          ### Requisitos
+          - Windows 10 versao 1903+
           - 4 GB RAM (recomendado: 8 GB)
-          - 500 MB espaço livre
-          - WebView2 Runtime (incluído)
+          - 500 MB espaco livre
+          - WebView2 Runtime (incluido)
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

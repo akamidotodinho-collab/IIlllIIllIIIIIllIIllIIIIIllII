@@ -180,11 +180,12 @@ impl Database {
         }
         
         Err(last_error.unwrap_or_else(|| {
-            rusqlite::Error::SqliteFailure(
-                rusqlite::ffi::Error::new(rusqlite::ErrorCode::DatabaseBusy),
-                Some("Max retries exceeded".to_string())
-            )
-        }))
+                    rusqlite::Error::SqliteFailure(
+                        rusqlite::ffi::Error::new(rusqlite::ErrorCode::DatabaseBusy as i32),
+                          Some("Max retries exceeded".to_string())
+                )
+            }))
+
     }
     
     pub fn create_user(&self, user: &User) -> SqliteResult<()> {

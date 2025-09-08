@@ -128,7 +128,9 @@ let mut db_file = archive.by_name("database.db")?;
         println!("   - Versão: {}", backup_info.version);
         println!("   - Tamanho DB: {} bytes", backup_info.database_size);
         println!("   - Arquivos: {}", backup_info.files_count);
-        println!("   - Checksum: {}", &backup_info.checksum[..8]);
+        let display_checksum = &backup_info.checksum[..backup_info.checksum.len().min(8)];
+println!("   - Checksum: {}", display_checksum);
+
         
         Ok(backup_info)
     }

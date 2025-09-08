@@ -77,10 +77,14 @@ impl BackupManager {
             }
         }
         
-        // Extrair e validar backup_info.json
-        let mut backup_info_file = archive.by_name("backup_info.json")?;
-        let mut backup_info_content = String::new();
-        backup_info_file.read_to_string(&mut backup_info_content)?;
+     {
+    let mut backup_info_file = archive.by_name("backup_info.json")?;
+    let mut backup_info_content = String::new();
+    backup_info_file.read_to_string(&mut backup_info_content)?;
+} // fim do escopo de backup_info_file
+
+let mut db_file = archive.by_name("database.db")?;
+
         
         let backup_info: BackupInfo = serde_json::from_str(&backup_info_content)
             .map_err(|e| BackupError::ValidationError(format!("JSON inválido: {}", e)))?;

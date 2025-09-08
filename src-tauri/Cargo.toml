@@ -1,5 +1,4 @@
 [package]
-[package]
 name = "arkive"
 version = "0.1.0"
 description = "ARKIVE - Guardou, Achou!"
@@ -7,7 +6,8 @@ authors = ["ARKIVE Team"]
 license = "MIT"
 repository = "https://github.com/akamidotodinho-collab/IIlllIIllIIIIIllIIllIIIIIllII"
 edition = "2021"
-rust-version = "1.82"   # corrigido
+rust-version = "1.82"
+
 
 [lib]
 name = "app_lib"

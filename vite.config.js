@@ -28,6 +28,10 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
+    hmr: {
+      host: '0.0.0.0',
+      port: 5000
+    }
   },
   optimizeDeps: {
     include: ['react', 'react-dom'],

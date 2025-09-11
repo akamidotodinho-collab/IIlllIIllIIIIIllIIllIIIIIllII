@@ -308,24 +308,7 @@ fn format_size(bytes: i64) -> String {
 // Função principal do Tauri
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Configurar logs
-    env_logger::Builder::from_default_env()
-        .filter_level(log::LevelFilter::Info)
-        .init();
-    
     log::info!("🚀 Iniciando ARKIVE Desktop...");
-    
-    // Inicializar runtime Tokio
-    let rt = match tokio::runtime::Runtime::new() {
-        Ok(runtime) => {
-            log::info!("✅ Tokio runtime inicializado");
-            runtime
-        },
-        Err(e) => {
-            log::error!("❌ Falha ao criar Tokio runtime: {:?}", e);
-            panic!("Failed to create Tokio runtime: {:?}", e);
-        }
-    };
     
     log::info!("🔧 Inicializando AppState...");
     let app_state = match AppState::new() {
@@ -335,7 +318,8 @@ pub fn run() {
         },
         Err(e) => {
             log::error!("❌ Falha ao inicializar AppState: {:?}", e);
-            panic!("Failed to initialize app state: {:?}", e);
+            eprintln!("ERRO ARKIVE: Falha ao inicializar banco de dados: {:?}", e);
+            std::process::exit(1);
         }
     };
 
@@ -356,6 +340,7 @@ pub fn run() {
         .run(tauri::generate_context!())
     {
         log::error!("❌ Erro ao executar aplicação Tauri: {:?}", e);
-        panic!("Error while running tauri application: {:?}", e);
+        eprintln!("ERRO ARKIVE: Falha ao iniciar aplicação: {:?}", e);
+        std::process::exit(1);
     }
 }

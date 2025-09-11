@@ -6,7 +6,7 @@ use tokio::sync::Mutex;
 mod database_sqlite;
 mod backup;
 
-use database_sqlite::{Database, User};
+use database_sqlite::{Database, User, AuditLog};
 use std::path::PathBuf;
 
 // Estado da aplicação
@@ -99,6 +99,32 @@ pub struct RegisterRequest {
     pub confirm_password: String,
 }
 
+// Estruturas para trilha de auditoria
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuditLogResponse {
+    pub id: String,
+    pub user_id: String,
+    pub username: String,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: Option<String>,
+    pub resource_name: Option<String>,
+    pub ip_address: Option<String>,
+    pub file_hash: Option<String>,
+    pub current_hash: String,
+    pub metadata: String,
+    pub timestamp: String,
+    pub is_success: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct AuditChainStatus {
+    pub is_valid: bool,
+    pub total_logs: usize,
+    pub first_log_date: Option<String>,
+    pub last_log_date: Option<String>,
+}
+
 // Comandos Tauri básicos (implementação mínima)
 #[tauri::command]
 async fn login(
@@ -114,12 +140,40 @@ async fn login(
                 let mut authenticated_user = state.authenticated_user.lock().await;
                 *authenticated_user = Some(user.clone());
                 
+                // REGISTRAR LOGIN SUCESSO NA TRILHA DE AUDITORIA
+                let _ = log_audit_event(
+                    &state,
+                    &user.id,
+                    &user.username,
+                    "LOGIN",
+                    "SYSTEM",
+                    None,
+                    None,
+                    None,
+                    Some(serde_json::json!({"ip_address": "local", "success": true})),
+                    true,
+                ).await;
+                
                 Ok(LoginResponse {
                     success: true,
                     user: Some(user.username),
                     error: None,
                 })
             } else {
+                // REGISTRAR LOGIN FALHA NA TRILHA DE AUDITORIA
+                let _ = log_audit_event(
+                    &state,
+                    &user.id,
+                    &user.username,
+                    "LOGIN_FAILED",
+                    "SYSTEM",
+                    None,
+                    None,
+                    None,
+                    Some(serde_json::json!({"ip_address": "local", "reason": "invalid_password"})),
+                    false,
+                ).await;
+                
                 Ok(LoginResponse {
                     success: false,
                     user: None,
@@ -128,6 +182,25 @@ async fn login(
             }
         }
         Ok(None) => {
+            // REGISTRAR TENTATIVA DE LOGIN COM USUÁRIO INEXISTENTE NA TRILHA DE AUDITORIA
+            let _ = state.db.create_audit_log(
+                "UNKNOWN_USER",
+                &request.username,
+                "LOGIN_FAILED",
+                "SYSTEM",
+                None,
+                None,
+                None,
+                None,
+                None,
+                Some(serde_json::json!({
+                    "ip_address": "local", 
+                    "reason": "user_not_found",
+                    "attempted_username": request.username
+                })),
+                false,
+            );
+            
             Ok(LoginResponse {
                 success: false,
                 user: None,
@@ -291,6 +364,114 @@ async fn get_recent_activities(
     }
 }
 
+// ================================
+// COMANDOS DE TRILHA DE AUDITORIA LEGAL
+// ================================
+
+// Buscar logs de auditoria
+#[tauri::command]
+async fn get_audit_logs(
+    action: Option<String>,
+    resource_type: Option<String>,
+    days_back: Option<u32>,
+    limit: Option<usize>,
+    state: State<'_, AppState>,
+) -> Result<Vec<AuditLogResponse>, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        // Calcular data de início se days_back foi fornecido
+        let start_date = days_back.map(|days| {
+            chrono::Utc::now() - chrono::Duration::days(days as i64)
+        });
+        
+        let logs = state.db.get_audit_logs(
+            Some(&user.id),
+            action.as_deref(),
+            resource_type.as_deref(),
+            start_date,
+            None,
+            limit,
+        ).map_err(|e| format!("Erro ao buscar logs de auditoria: {:?}", e))?;
+        
+        let response: Vec<AuditLogResponse> = logs.into_iter().map(|log| {
+            AuditLogResponse {
+                id: log.id,
+                user_id: log.user_id,
+                username: log.username,
+                action: log.action,
+                resource_type: log.resource_type,
+                resource_id: log.resource_id,
+                resource_name: log.resource_name,
+                ip_address: log.ip_address,
+                file_hash: log.file_hash,
+                current_hash: log.current_hash,
+                metadata: log.metadata,
+                timestamp: log.timestamp.format("%d/%m/%Y %H:%M:%S").to_string(),
+                is_success: log.is_success,
+            }
+        }).collect();
+        
+        Ok(response)
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+// Verificar integridade da cadeia de auditoria
+#[tauri::command]
+async fn verify_audit_chain(
+    state: State<'_, AppState>,
+) -> Result<AuditChainStatus, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(_user) = authenticated_user.as_ref() {
+        let is_valid = state.db.verify_audit_chain()
+            .map_err(|e| format!("Erro ao verificar cadeia de auditoria: {:?}", e))?;
+        
+        // Buscar estatísticas da cadeia usando nova função otimizada
+        let (total_logs, first_log_date, last_log_date) = state.db.get_audit_chain_stats()
+            .map_err(|e| format!("Erro ao buscar estatísticas: {:?}", e))?;
+        
+        Ok(AuditChainStatus {
+            is_valid,
+            total_logs,
+            first_log_date,
+            last_log_date,
+        })
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+// Função para registrar automaticamente logs de auditoria (uso interno)
+pub async fn log_audit_event(
+    state: &AppState,
+    user_id: &str,
+    username: &str,
+    action: &str,
+    resource_type: &str,
+    resource_id: Option<String>,
+    resource_name: Option<String>,
+    file_hash: Option<String>,
+    metadata: Option<serde_json::Value>,
+    is_success: bool,
+) -> Result<(), String> {
+    state.db.create_audit_log(
+        user_id,
+        username,
+        action,
+        resource_type,
+        resource_id,
+        resource_name,
+        None, // ip_address - TODO: implementar detecção de IP
+        None, // user_agent - TODO: implementar detecção de User-Agent
+        file_hash,
+        metadata,
+        is_success,
+    ).map_err(|e| format!("Erro ao criar log de auditoria: {:?}", e))?;
+    
+    Ok(())
+}
+
 // Função utilitária para formatar tamanho
 fn format_size(bytes: i64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
@@ -334,8 +515,11 @@ pub fn run() {
             get_stats,
             get_documents,
             get_recent_activities,
+            get_audit_logs,
+            verify_audit_chain,
             backup::verify_backup_file,
             backup::list_available_backups,
+            test_audit_security,
         ])
         .run(tauri::generate_context!())
     {

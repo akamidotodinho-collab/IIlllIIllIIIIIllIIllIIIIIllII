@@ -6,6 +6,8 @@ use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 use std::time::Duration;
 use std::thread;
+use sha2::{Sha256, Digest};
+use std::fmt::Write;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct User {
@@ -39,6 +41,27 @@ pub struct Activity {
     pub resource_id: String,
     pub details: String,
     pub created_at: DateTime<Utc>,
+}
+
+// TRILHA DE AUDITORIA LEGAL - IMUTÁVEL E CRIPTOGRAFICAMENTE SEGURA
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditLog {
+    pub sequence_id: i64,              // Número sequencial monotônico (PRIMARY KEY)
+    pub id: String,
+    pub user_id: String,
+    pub username: String,
+    pub action: String,          // LOGIN, UPLOAD, DOWNLOAD, VIEW, DELETE, MODIFY
+    pub resource_type: String,   // DOCUMENT, USER, SYSTEM
+    pub resource_id: Option<String>,
+    pub resource_name: Option<String>,
+    pub ip_address: Option<String>,
+    pub user_agent: Option<String>,
+    pub file_hash: Option<String>,     // SHA-256 do arquivo
+    pub previous_hash: String,         // Hash do log anterior (blockchain-like)
+    pub current_hash: String,          // SHA-256 deste log (imutabilidade)
+    pub metadata: String,              // JSON com detalhes extras
+    pub timestamp: DateTime<Utc>,      // Timestamp preciso
+    pub is_success: bool,              // Se a ação foi bem-sucedida
 }
 
 pub struct Database {
@@ -128,6 +151,49 @@ impl Database {
             )
         "#, [])?;
         
+        // TABELA DE AUDITORIA LEGAL - IMUTÁVEL E CRIPTOGRAFICAMENTE SEGURA
+        // APPEND-ONLY COM PROTEÇÃO CONTRA ADULTERAÇÃO
+        conn.execute(r#"
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                sequence_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT UNIQUE NOT NULL,
+                user_id TEXT NOT NULL,
+                username TEXT NOT NULL,
+                action TEXT NOT NULL,
+                resource_type TEXT NOT NULL,
+                resource_id TEXT,
+                resource_name TEXT,
+                ip_address TEXT,
+                user_agent TEXT,
+                file_hash TEXT,
+                previous_hash TEXT NOT NULL,
+                current_hash TEXT NOT NULL,
+                metadata TEXT NOT NULL,
+                timestamp TEXT NOT NULL,
+                is_success BOOLEAN NOT NULL,
+                FOREIGN KEY (user_id) REFERENCES users (id)
+            )
+        "#, [])?;
+        
+        // TRIGGERS CRÍTICOS DE SEGURANÇA - IMPEDEM ADULTERAÇÃO DA TRILHA DE AUDITORIA
+        // Bloquear UPDATE nos logs de auditoria (IMUTABILIDADE)
+        conn.execute(r#"
+            CREATE TRIGGER IF NOT EXISTS prevent_audit_log_update
+            BEFORE UPDATE ON audit_logs
+            BEGIN
+                SELECT RAISE(ABORT, 'TRILHA DE AUDITORIA IMUTÁVEL: UPDATE proibido por questões legais e de segurança');
+            END
+        "#, [])?;
+        
+        // Bloquear DELETE nos logs de auditoria (APPEND-ONLY)
+        conn.execute(r#"
+            CREATE TRIGGER IF NOT EXISTS prevent_audit_log_delete
+            BEFORE DELETE ON audit_logs
+            BEGIN
+                SELECT RAISE(ABORT, 'TRILHA DE AUDITORIA IMUTÁVEL: DELETE proibido por questões legais e de segurança');
+            END
+        "#, [])?;
+        
         // ÍNDICES PARA PERFORMANCE
         conn.execute("CREATE INDEX IF NOT EXISTS idx_documents_user_id ON documents(user_id)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at)", [])?;
@@ -135,6 +201,14 @@ impl Database {
         conn.execute("CREATE INDEX IF NOT EXISTS idx_activities_created_at ON activities(created_at)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)", [])?;
+        
+        // ÍNDICES PARA TRILHA DE AUDITORIA - OTIMIZADOS PARA SEQUÊNCIA
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_timestamp ON audit_logs(timestamp)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource_type, resource_id)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_current_hash ON audit_logs(current_hash)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_sequence_id ON audit_logs(sequence_id)", [])?;
         
         Ok(())
     }
@@ -360,6 +434,338 @@ impl Database {
         self.execute_with_retry(|conn| {
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)", [])?;
             Ok(())
+        })
+    }
+
+    // ================================
+    // SISTEMA DE TRILHA DE AUDITORIA LEGAL
+    // ================================
+    
+    // Calcular hash SHA-256 para integridade criptográfica
+    fn calculate_hash(&self, data: &str) -> String {
+        let mut hasher = Sha256::new();
+        hasher.update(data.as_bytes());
+        let result = hasher.finalize();
+        let mut hash_string = String::new();
+        for byte in result {
+            write!(&mut hash_string, "{:02x}", byte).unwrap();
+        }
+        hash_string
+    }
+    
+    // Obter o último hash da cadeia (blockchain-like) - TRANSACIONAL PARA EVITAR RACE CONDITIONS
+    fn get_last_audit_hash(&self, conn: &Connection) -> SqliteResult<String> {
+        // Usar transação IMMEDIATE para evitar problemas de concorrência
+        conn.execute("BEGIN IMMEDIATE", [])?;
+        
+        let result = match conn.prepare("SELECT current_hash FROM audit_logs ORDER BY sequence_id DESC LIMIT 1") {
+            Ok(mut stmt) => {
+                match stmt.query_row([], |row| {
+                    let hash: String = row.get(0)?;
+                    Ok(hash)
+                }) {
+                    Ok(hash) => Ok(hash),
+                    Err(rusqlite::Error::QueryReturnedNoRows) => {
+                        // Primeiro log - usar hash inicial
+                        Ok("0000000000000000000000000000000000000000000000000000000000000000".to_string())
+                    }
+                    Err(e) => Err(e)
+                }
+            }
+            Err(e) => Err(e)
+        };
+        
+        // Não fazer COMMIT aqui - será feito pela função que criou a transação
+        result
+    }
+    
+    // FUNÇÃO PRINCIPAL: Criar log de auditoria imutável - PROTEGIDA CONTRA RACE CONDITIONS
+    pub fn create_audit_log(
+        &self,
+        user_id: &str,
+        username: &str,
+        action: &str,
+        resource_type: &str,
+        resource_id: Option<String>,
+        resource_name: Option<String>,
+        ip_address: Option<String>,
+        user_agent: Option<String>,
+        file_hash: Option<String>,
+        metadata: Option<serde_json::Value>,
+        is_success: bool,
+    ) -> SqliteResult<AuditLog> {
+        self.execute_with_retry(|conn| {
+            // TRANSAÇÃO ATÔMICA PARA EVITAR RACE CONDITIONS NA CADEIA DE HASH
+            let log_id = Uuid::new_v4().to_string();
+            let timestamp = Utc::now();
+            
+            // Obter último hash dentro da mesma transação
+            let previous_hash = self.get_last_audit_hash(conn)?;
+            
+            // Criar string para hash (determinística)
+            let metadata_str = metadata
+                .map(|m| m.to_string())
+                .unwrap_or_else(|| "{}".to_string());
+                
+            let hash_data = format!(
+                "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                log_id,
+                user_id,
+                username,
+                action,
+                resource_type,
+                resource_id.as_deref().unwrap_or(""),
+                resource_name.as_deref().unwrap_or(""),
+                ip_address.as_deref().unwrap_or(""),
+                file_hash.as_deref().unwrap_or(""),
+                previous_hash,
+                metadata_str,
+                timestamp.to_rfc3339(),
+                is_success
+            );
+            
+            let current_hash = self.calculate_hash(&hash_data);
+            
+            // Inserir no banco (sequence_id será auto-gerado)
+            conn.execute(
+                r#"INSERT INTO audit_logs 
+                   (id, user_id, username, action, resource_type, resource_id, resource_name, 
+                    ip_address, user_agent, file_hash, previous_hash, current_hash, metadata, 
+                    timestamp, is_success) 
+                   VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"#,
+                params![
+                    log_id,
+                    user_id,
+                    username,
+                    action,
+                    resource_type,
+                    resource_id,
+                    resource_name,
+                    ip_address,
+                    user_agent,
+                    file_hash,
+                    previous_hash,
+                    current_hash,
+                    metadata_str,
+                    timestamp.to_rfc3339(),
+                    is_success
+                ]
+            )?;
+            
+            // Obter o sequence_id gerado
+            let sequence_id = conn.last_insert_rowid();
+            
+            // COMMIT da transação
+            conn.execute("COMMIT", [])?;
+            
+            Ok(AuditLog {
+                sequence_id,
+                id: log_id,
+                user_id: user_id.to_string(),
+                username: username.to_string(),
+                action: action.to_string(),
+                resource_type: resource_type.to_string(),
+                resource_id,
+                resource_name,
+                ip_address,
+                user_agent,
+                file_hash,
+                previous_hash,
+                current_hash,
+                metadata: metadata_str,
+                timestamp,
+                is_success,
+            })
+        })
+    }
+    
+    // Buscar logs de auditoria com filtros
+    pub fn get_audit_logs(
+        &self,
+        user_id: Option<&str>,
+        action: Option<&str>,
+        resource_type: Option<&str>,
+        start_date: Option<DateTime<Utc>>,
+        end_date: Option<DateTime<Utc>>,
+        limit: Option<usize>,
+    ) -> SqliteResult<Vec<AuditLog>> {
+        self.execute_with_retry(|conn| {
+            let mut query = "SELECT sequence_id, id, user_id, username, action, resource_type, resource_id, resource_name, ip_address, user_agent, file_hash, previous_hash, current_hash, metadata, timestamp, is_success FROM audit_logs WHERE 1=1".to_string();
+            let mut params = Vec::new();
+            
+            if let Some(uid) = user_id {
+                query.push_str(" AND user_id = ?");
+                params.push(uid);
+            }
+            
+            if let Some(act) = action {
+                query.push_str(" AND action = ?");
+                params.push(act);
+            }
+            
+            if let Some(rt) = resource_type {
+                query.push_str(" AND resource_type = ?");
+                params.push(rt);
+            }
+            
+            if let Some(start) = start_date {
+                query.push_str(" AND timestamp >= ?");
+                params.push(&start.to_rfc3339());
+            }
+            
+            if let Some(end) = end_date {
+                query.push_str(" AND timestamp <= ?");
+                params.push(&end.to_rfc3339());
+            }
+            
+            query.push_str(" ORDER BY sequence_id DESC");
+            
+            if let Some(lim) = limit {
+                query.push_str(&format!(" LIMIT {}", lim));
+            }
+            
+            let mut stmt = conn.prepare(&query)?;
+            
+            // Converter para rusqlite::types::Value
+            let sqlite_params: Vec<&dyn rusqlite::ToSql> = params.iter()
+                .map(|p| p as &dyn rusqlite::ToSql)
+                .collect();
+            
+            let audit_iter = stmt.query_map(&sqlite_params[..], |row| {
+                let timestamp_str: String = row.get(14)?;
+                
+                Ok(AuditLog {
+                    sequence_id: row.get(0)?,
+                    id: row.get(1)?,
+                    user_id: row.get(2)?,
+                    username: row.get(3)?,
+                    action: row.get(4)?,
+                    resource_type: row.get(5)?,
+                    resource_id: row.get(6)?,
+                    resource_name: row.get(7)?,
+                    ip_address: row.get(8)?,
+                    user_agent: row.get(9)?,
+                    file_hash: row.get(10)?,
+                    previous_hash: row.get(11)?,
+                    current_hash: row.get(12)?,
+                    metadata: row.get(13)?,
+                    timestamp: DateTime::parse_from_rfc3339(&timestamp_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(14, "timestamp".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                    is_success: row.get(15)?,
+                })
+            })?;
+            
+            let mut logs = Vec::new();
+            for log in audit_iter {
+                logs.push(log?);
+            }
+            
+            Ok(logs)
+        })
+    }
+    
+    // Verificar integridade completa da cadeia de auditoria - CRIPTOGRAFICAMENTE SEGURA
+    pub fn verify_audit_chain(&self) -> SqliteResult<bool> {
+        self.execute_with_retry(|conn| {
+            // Usar sequence_id para garanta de ordem monotonica
+            let mut stmt = conn.prepare("SELECT sequence_id, id, user_id, username, action, resource_type, resource_id, resource_name, ip_address, user_agent, file_hash, previous_hash, current_hash, metadata, timestamp, is_success FROM audit_logs ORDER BY sequence_id ASC")?;
+            
+            let audit_iter = stmt.query_map([], |row| {
+                let timestamp_str: String = row.get(14)?;
+                Ok(AuditLog {
+                    sequence_id: row.get(0)?,
+                    id: row.get(1)?,
+                    user_id: row.get(2)?,
+                    username: row.get(3)?,
+                    action: row.get(4)?,
+                    resource_type: row.get(5)?,
+                    resource_id: row.get(6)?,
+                    resource_name: row.get(7)?,
+                    ip_address: row.get(8)?,
+                    user_agent: row.get(9)?,
+                    file_hash: row.get(10)?,
+                    previous_hash: row.get(11)?,
+                    current_hash: row.get(12)?,
+                    metadata: row.get(13)?,
+                    timestamp: DateTime::parse_from_rfc3339(&timestamp_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(14, "timestamp".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                    is_success: row.get(15)?,
+                })
+            })?;
+            
+            let mut previous_hash = "0000000000000000000000000000000000000000000000000000000000000000".to_string();
+            let mut expected_sequence = 1i64; // Primeiro sequence_id deve ser 1
+            
+            for log_result in audit_iter {
+                let log = log_result?;
+                
+                // VERIFICAÇÃO CRÍTICA 1: Sequence ID deve ser consecutivo
+                if log.sequence_id != expected_sequence {
+                    log::error!("FALHA AUDITORIA: Sequence ID inválido. Esperado: {}, Encontrado: {}", expected_sequence, log.sequence_id);
+                    return Ok(false);
+                }
+                
+                // VERIFICAÇÃO CRÍTICA 2: Hash anterior deve coincidir
+                if log.previous_hash != previous_hash {
+                    log::error!("FALHA AUDITORIA: Previous hash inválido no sequence_id {}", log.sequence_id);
+                    return Ok(false);
+                }
+                
+                // VERIFICAÇÃO CRÍTICA 3: Recalcular hash e verificar integridade
+                let hash_data = format!(
+                    "{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}|{}",
+                    log.id,
+                    log.user_id,
+                    log.username,
+                    log.action,
+                    log.resource_type,
+                    log.resource_id.as_deref().unwrap_or(""),
+                    log.resource_name.as_deref().unwrap_or(""),
+                    log.ip_address.as_deref().unwrap_or(""),
+                    log.file_hash.as_deref().unwrap_or(""),
+                    log.previous_hash,
+                    log.metadata,
+                    log.timestamp.to_rfc3339(),
+                    log.is_success
+                );
+                
+                let calculated_hash = self.calculate_hash(&hash_data);
+                if calculated_hash != log.current_hash {
+                    log::error!("FALHA AUDITORIA: Hash calculado difere do armazenado no sequence_id {}", log.sequence_id);
+                    return Ok(false);
+                }
+                
+                previous_hash = log.current_hash;
+                expected_sequence += 1;
+            }
+            
+            log::info!("SUCESSO: Trilha de auditoria íntegra. Verificados {} registros.", expected_sequence - 1);
+            Ok(true)
+        })
+    }
+    
+    // NOVA FUNÇÃO: Estatísticas da trilha de auditoria
+    pub fn get_audit_chain_stats(&self) -> SqliteResult<(usize, Option<String>, Option<String>)> {
+        self.execute_with_retry(|conn| {
+            // Total de logs
+            let mut stmt = conn.prepare("SELECT COUNT(*) FROM audit_logs")?;
+            let total_logs: usize = stmt.query_row([], |row| Ok(row.get::<_, i64>(0)? as usize))?;
+            
+            if total_logs == 0 {
+                return Ok((0, None, None));
+            }
+            
+            // Primeiro log
+            let mut stmt = conn.prepare("SELECT timestamp FROM audit_logs ORDER BY sequence_id ASC LIMIT 1")?;
+            let first_log: String = stmt.query_row([], |row| row.get(0))?;
+            
+            // Último log
+            let mut stmt = conn.prepare("SELECT timestamp FROM audit_logs ORDER BY sequence_id DESC LIMIT 1")?;
+            let last_log: String = stmt.query_row([], |row| row.get(0))?;
+            
+            Ok((total_logs, Some(first_log), Some(last_log)))
         })
     }
 }

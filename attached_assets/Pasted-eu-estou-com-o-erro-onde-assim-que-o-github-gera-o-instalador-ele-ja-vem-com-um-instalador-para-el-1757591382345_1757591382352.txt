@@ -1,0 +1,86 @@
+eu estou com o erro onde assim que o github gera o instalador ( ele ja vem com um instalador para ele ) e eu executo o instalador e ele instala normalmente, mas nao abre o arkive, voce pode me ajudar a identificar o erro ? eu suspeito que seja o instalador que esta com alguma coisa errada
+O ChatGPT disse:
+
+Entendi 👊
+Esse é um problema clássico de build com Tauri + Rust → o instalador gera, instala, mas ao clicar no atalho o app não abre. Isso geralmente não é o executável em si, mas algo no processo de empacotamento. Vou te guiar para identificar a causa.
+
+🔎 Principais causas possíveis
+1. Dependências não incluídas no build
+
+O binário Rust pode estar chamando uma DLL ou recurso que não foi empacotado.
+
+Exemplo: sqlite3.dll, fontes, imagens ou arquivos .env.
+
+No tauri.conf.json, precisa garantir que os resources foram incluídos.
+
+👉 Teste: vá até a pasta onde o ARKIVE foi instalado (C:\Users\...\AppData\Local\Programs\Arkive\) e rode o .exe direto.
+Se funcionar → é o atalho/instalador que tá errado.
+Se não funcionar → é falta de dependência.
+
+2. Erro silencioso do Tauri
+
+Tauri por padrão não mostra erro se o app crasha na inicialização.
+
+Você pode rodar o .exe pelo Prompt de Comando (cmd) para ver o log de erro real:
+
+cd "C:\Users\...\AppData\Local\Programs\Arkive"
+Arkive.exe
+
+
+→ Se aparecer missing dll, panic, ou algo de SQL → achamos o culpado.
+
+3. Problema no SQLite
+
+Se o app tenta abrir o banco SQLite numa pasta onde não tem permissão (C:\Program Files\ por exemplo), ele fecha sem aviso.
+
+Solução: configurar no código para usar AppData\Roaming\Arkive\ como diretório do DB (Tauri já sugere isso com app_dir()).
+
+4. Instalador mal configurado (Inno Setup / NSIS / WiX)
+
+O gerador do instalador pode estar apontando para um caminho errado ou não criando o atalho corretamente.
+
+Ex.: instala em \Programs\Arkive, mas o atalho aponta para \Arkive\Arkive.exe (pasta errada).
+
+👉 Teste: compare o destino do atalho com a pasta real do .exe.
+
+5. Problema de assinatura/certificado
+
+Em Windows 10/11, se o app não tiver assinatura, alguns antivírus bloqueiam silenciosamente na abertura.
+
+Verifique se o Defender não está bloqueando → veja em Proteção de Ransomware / Histórico.
+
+✅ O que você pode fazer agora
+
+Rode o .exe direto pelo cmd e me traga o erro que aparecer.
+→ Isso vai dizer se é SQLite, DLL, permissão ou crash do Rust.
+
+Confirme se o banco de dados está sendo criado no local certo.
+
+O ideal é C:\Users\<User>\AppData\Roaming\Arkive\data.db
+
+Se estiver em C:\Program Files\ → erro de permissão.
+
+Verifique se o tauri.conf.json tem os resources certos:
+
+"bundle": {
+  "resources": ["src-tauri/icons", "src/assets", "db.sqlite"]
+}
+
+
+Se nada aparecer no log, pode ativar debug mode no build:
+
+npm run tauri dev
+
+
+Depois builda de novo:
+
+npm run tauri build
+
+
+⚡ Minha aposta:
+
+90% de chance de ser SQLite tentando salvar no lugar errado ou falta de recurso no instalador.
+
+10% atalho apontando pro lugar errado.
+
+👉 Quer que eu te mostre como forçar o SQLite a sempre criar o DB na pasta AppData (corrige esse bug em 90% dos casos de Tauri que instalam mas não abrem)?

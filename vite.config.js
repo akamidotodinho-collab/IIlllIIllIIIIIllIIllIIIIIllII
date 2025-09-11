@@ -28,6 +28,13 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
+    hmr: {
+      host: '0.0.0.0',
+      port: 5000
+    },
+    watch: {
+      ignored: ['**/.local/**', '**/src-tauri/**', '**/target/**', '**/.cargo/**']
+    }
   },
   optimizeDeps: {
     include: ['react', 'react-dom'],

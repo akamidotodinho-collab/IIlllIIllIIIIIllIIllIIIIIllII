@@ -1,7 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Image, Download, Trash2, Plus, Shield, Home } from 'lucide-react';
+import { Search, Upload, FileText, Image, Download, Trash2, Plus, Shield, Home, User, LogOut } from 'lucide-react';
 import AuditTrail from './components/AuditTrail';
+import SearchInterface from './components/SearchInterface';
+import { AuthAPI, DocumentAPI, StatsAPI, AppAPI, type Document as APIDocument, type User as APIUser, type AppStats } from './services/documentApi';
 
+// Interface local para compatibilidade
 interface Document {
   id: string;
   name: string;
@@ -11,12 +14,115 @@ interface Document {
 }
 
 export default function SimpleApp() {
+  // Estados para dados reais
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [user, setUser] = useState('Usuário Local');
-  const [activeTab, setActiveTab] = useState<'documents' | 'audit'>('documents');
+  const [user, setUser] = useState<APIUser | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [stats, setStats] = useState<AppStats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  
+  // Estados para UI
+  const [activeTab, setActiveTab] = useState<'documents' | 'search' | 'audit'>('documents');
+  const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+  const [showLogin, setShowLogin] = useState(false);
 
-  // Filtrar documentos por busca
+  // Inicializar app - verificar usuário autenticado
+  useEffect(() => {
+    initializeApp();
+  }, []);
+
+  const initializeApp = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Verificar se usuário está autenticado
+      const currentUser = await AuthAPI.getCurrentUser();
+      if (currentUser) {
+        setUser(currentUser);
+        setIsAuthenticated(true);
+        await loadAppData();
+      } else {
+        setShowLogin(true);
+      }
+    } catch (error) {
+      console.warn('Erro ao inicializar app:', error);
+      setShowLogin(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Carregar dados do app
+  const loadAppData = async () => {
+    try {
+      const [docsResult, statsResult] = await Promise.all([
+        DocumentAPI.getDocuments(),
+        StatsAPI.getStats()
+      ]);
+      
+      // Converter APIDocument para Document local
+      const localDocs: Document[] = docsResult.map(doc => ({
+        id: doc.id,
+        name: doc.name,
+        size: doc.file_size,
+        type: doc.file_type,
+        date: AppAPI.formatDate(doc.created_at)
+      }));
+      
+      setDocuments(localDocs);
+      setStats(statsResult);
+      
+      console.log('✅ Dados carregados:', localDocs.length, 'documentos');
+    } catch (error) {
+      console.error('❌ Erro ao carregar dados:', error);
+      AppAPI.showError('Erro ao carregar dados do sistema');
+    }
+  };
+
+  // Login do usuário
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!loginForm.username || !loginForm.password) {
+      AppAPI.showError('Preencha usuário e senha');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const loggedUser = await AuthAPI.login(loginForm.username, loginForm.password);
+      setUser(loggedUser);
+      setIsAuthenticated(true);
+      setShowLogin(false);
+      setLoginForm({ username: '', password: '' });
+      
+      AppAPI.showSuccess(`Bem-vindo, ${loggedUser.username}!`);
+      await loadAppData();
+    } catch (error) {
+      AppAPI.showError('Credenciais inválidas');
+      console.error('Erro no login:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Logout do usuário
+  const handleLogout = async () => {
+    try {
+      await AuthAPI.logout();
+      setUser(null);
+      setIsAuthenticated(false);
+      setDocuments([]);
+      setStats(null);
+      setShowLogin(true);
+      AppAPI.showSuccess('Logout realizado com sucesso');
+    } catch (error) {
+      console.error('Erro no logout:', error);
+    }
+  };
+
+  // Filtrar documentos por busca (busca simples local)
   const filteredDocs = documents.filter(doc => 
     doc.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -68,11 +174,129 @@ export default function SimpleApp() {
     return <FileText className="w-5 h-5 text-gray-500" />;
   };
 
+  // Tela de login
+  if (showLogin || !isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="bg-white dark:bg-gray-800 p-8 rounded-lg shadow-lg w-full max-w-md">
+          <div className="text-center mb-6">
+            <Shield className="w-12 h-12 text-blue-600 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">ARKIVE Desktop</h1>
+            <p className="text-gray-600 dark:text-gray-400">Sistema de Gerenciamento de Documentos</p>
+          </div>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Usuário
+              </label>
+              <input
+                type="text"
+                value={loginForm.username}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, username: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="seu@email.com"
+                disabled={isLoading}
+                required
+              />
+            </div>
+            
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Senha
+              </label>
+              <input
+                type="password"
+                value={loginForm.password}
+                onChange={(e) => setLoginForm(prev => ({ ...prev, password: e.target.value }))}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg 
+                         bg-white dark:bg-gray-700 text-gray-900 dark:text-white
+                         focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="••••••••"
+                disabled={isLoading}
+                required
+              />
+            </div>
+            
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg
+                       disabled:opacity-50 disabled:cursor-not-allowed transition-colors
+                       flex items-center justify-center gap-2"
+            >
+              {isLoading ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Entrando...
+                </>
+              ) : (
+                'Entrar'
+              )}
+            </button>
+            
+            <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-4">
+              Primeiro acesso? O sistema criará sua conta automaticamente.
+            </p>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Loading inicial
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600 dark:text-gray-400">Carregando ARKIVE...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
-        <div className="px-6 py-4">
+        <div className="px-6 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Shield className="w-8 h-8 text-blue-600" />
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white">ARKIVE Desktop</h1>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Sistema Empresarial de Documentos</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            {stats && (
+              <div className="hidden md:flex items-center gap-6 text-sm text-gray-600 dark:text-gray-400">
+                <span>{stats.total_documents} docs</span>
+                <span>{Math.round(stats.total_storage / 1024 / 1024)} MB</span>
+              </div>
+            )}
+            
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <User className="w-4 h-4 text-gray-500" />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {user?.username || 'Usuário'}
+                </span>
+              </div>
+              
+              <button
+                onClick={handleLogout}
+                className="p-2 text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+                title="Sair"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Image, Download, Trash2, Plus } from 'lucide-react';
+import { Search, Upload, FileText, Image, Download, Trash2, Plus, Shield, Home } from 'lucide-react';
+import AuditTrail from './components/AuditTrail';
 
 interface Document {
   id: string;
@@ -13,6 +14,7 @@ export default function SimpleApp() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [user, setUser] = useState('Usuário Local');
+  const [activeTab, setActiveTab] = useState<'documents' | 'audit'>('documents');
 
   // Filtrar documentos por busca
   const filteredDocs = documents.filter(doc => 
@@ -82,37 +84,65 @@ export default function SimpleApp() {
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
-                {documents.length} documentos
-              </div>
-              
-              <button
-                onClick={handleUpload}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              <button 
+                onClick={() => setActiveTab('documents')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'documents' 
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
               >
-                <Plus className="w-4 h-4" />
-                Adicionar
+                <Home className="w-4 h-4" />
+                Documentos
               </button>
+              
+              <button 
+                onClick={() => setActiveTab('audit')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'audit' 
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <Shield className="w-4 h-4" />
+                Auditoria
+              </button>
+              
+              {activeTab === 'documents' && (
+                <button
+                  onClick={handleUpload}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <Plus className="w-4 h-4" />
+                  Adicionar
+                </button>
+              )}
             </div>
           </div>
           
-          {/* Busca */}
-          <div className="mt-4 relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Digite aqui para localizar algo..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
+          {/* Busca - apenas para documentos */}
+          {activeTab === 'documents' && (
+            <div className="mt-4 relative max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Digite aqui para localizar algo..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+          )}
         </div>
       </header>
 
       {/* Conteúdo */}
       <main className="p-6">
-        {documents.length === 0 ? (
+        {activeTab === 'audit' ? (
+          <AuditTrail />
+        ) : (
+          <>
+            {documents.length === 0 ? (
           <div className="text-center py-12">
             <Upload className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-xl font-medium text-gray-900 dark:text-white mb-2">
@@ -167,12 +197,14 @@ export default function SimpleApp() {
           </div>
         )}
 
-        {searchTerm && filteredDocs.length === 0 && documents.length > 0 && (
-          <div className="text-center py-8">
-            <p className="text-gray-600 dark:text-gray-400">
-              Nenhum documento encontrado para "{searchTerm}"
-            </p>
-          </div>
+            {searchTerm && filteredDocs.length === 0 && documents.length > 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-600 dark:text-gray-400">
+                  Nenhum documento encontrado para "{searchTerm}"
+                </p>
+              </div>
+            )}
+          </>
         )}
       </main>
     </div>

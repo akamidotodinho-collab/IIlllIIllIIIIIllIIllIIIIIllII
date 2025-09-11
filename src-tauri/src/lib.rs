@@ -5,14 +5,19 @@ use tokio::sync::Mutex;
 
 mod database_sqlite;
 mod backup;
+mod ocr;
+mod ocr_simple;
 
-use database_sqlite::{Database, User, AuditLog};
+use database_sqlite::{Database, User, AuditLog, SearchResult};
+use ocr::{OCRProcessor, ExtractedMetadata, DocumentType};
+use ocr_simple::{SimpleOCRProcessor, SimpleOCRResult, create_simple_ocr_processor};
 use std::path::PathBuf;
 
 // Estado da aplicação
 pub struct AppState {
     pub db: Arc<Database>,
     pub authenticated_user: Arc<Mutex<Option<User>>>,
+    pub ocr_processor: Arc<Mutex<Option<OCRProcessor>>>,
 }
 
 impl AppState {
@@ -40,11 +45,15 @@ impl AppState {
         };
         
         let authenticated_user = Arc::new(Mutex::new(None));
+        
+        // Inicializar OCR processor (lazy loading)
+        let ocr_processor = Arc::new(Mutex::new(None));
         log::info!("✅ AppState inicializado com sucesso");
         
         Ok(AppState {
             db,
             authenticated_user,
+            ocr_processor,
         })
     }
 }
@@ -442,6 +451,179 @@ async fn verify_audit_chain(
     }
 }
 
+// ================================
+// COMANDOS OCR + IA OFFLINE
+// ================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct OCRResult {
+    pub extracted_text: String,
+    pub document_type: String,
+    pub extracted_fields: std::collections::HashMap<String, String>,
+    pub confidence_score: f32,
+    pub processing_time_ms: u128,
+}
+
+// Novo comando OCR simplificado e confiável
+#[tauri::command]
+async fn process_document_simple_ocr(
+    file_path: String,
+    state: State<'_, AppState>,
+) -> Result<SimpleOCRResult, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        log::info!("🔍 Iniciando OCR simplificado para: {}", file_path);
+        
+        let processor = create_simple_ocr_processor()
+            .map_err(|e| format!("Erro ao criar OCR processor: {:?}", e))?;
+        
+        let path = std::path::Path::new(&file_path);
+        let extension = path.extension()
+            .and_then(|ext| ext.to_str())
+            .map(|s| s.to_lowercase());
+        
+        let result = match extension.as_deref() {
+            Some("pdf") => {
+                processor.process_pdf(&file_path).await
+                    .map_err(|e| format!("Erro ao processar PDF: {:?}", e))?
+            }
+            Some("png") | Some("jpg") | Some("jpeg") | Some("tiff") | Some("bmp") => {
+                processor.process_image(&file_path).await
+                    .map_err(|e| format!("Erro ao processar imagem: {:?}", e))?
+            }
+            _ => {
+                return Err("Tipo de arquivo não suportado. Use PDF, PNG, JPG, JPEG, TIFF ou BMP.".to_string());
+            }
+        };
+        
+        // Log da operação
+        let file_name = path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("documento_desconhecido");
+        
+        let _ = log_audit_event(
+            &state,
+            &user.id,
+            &user.username,
+            "OCR_SIMPLE",
+            "DOCUMENT",
+            Some(file_name.to_string()),
+            Some(file_name.to_string()),
+            None,
+            None,
+            Some(serde_json::json!({
+                "file_path": file_path,
+                "document_type": result.document_type,
+                "confidence_score": result.confidence_score,
+                "processing_time_ms": result.processing_time_ms,
+                "method": result.processing_method
+            })),
+            result.error_message.is_none(),
+        ).await;
+        
+        Ok(result)
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+// Processar documento com OCR + IA (com fallback para sistema simplificado)
+#[tauri::command]
+async fn process_document_ocr(
+    file_path: String,
+    state: State<'_, AppState>,
+) -> Result<OCRResult, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        let start_time = std::time::Instant::now();
+        
+        // Inicializar OCR processor se necessário
+        let mut ocr_guard = state.ocr_processor.lock().await;
+        if ocr_guard.is_none() {
+            match ocr::create_ocr_processor() {
+                Ok(processor) => {
+                    *ocr_guard = Some(processor);
+                    log::info!("✅ OCR Processor inicializado on-demand");
+                }
+                Err(e) => {
+                    log::error!("❌ Erro ao inicializar OCR: {:?}", e);
+                    return Err(format!("Erro ao inicializar OCR: {:?}", e));
+                }
+            }
+        }
+        
+        if let Some(ocr_processor) = ocr_guard.as_mut() {
+            // Determinar tipo do arquivo
+            let path = std::path::Path::new(&file_path);
+            let extension = path.extension()
+                .and_then(|ext| ext.to_str())
+                .map(|s| s.to_lowercase());
+            
+            let extracted_text = match extension.as_deref() {
+                Some("pdf") => {
+                    ocr_processor.extract_text_from_pdf(&file_path)
+                        .map_err(|e| format!("Erro ao processar PDF: {:?}", e))?
+                }
+                Some("png") | Some("jpg") | Some("jpeg") | Some("tiff") | Some("bmp") => {
+                    ocr_processor.extract_text_from_image(&file_path)
+                        .map_err(|e| format!("Erro ao processar imagem: {:?}", e))?
+                }
+                _ => {
+                    return Err("Tipo de arquivo não suportado. Use PDF, PNG, JPG, JPEG, TIFF ou BMP.".to_string());
+                }
+            };
+            
+            // Analisar documento com IA
+            let metadata = ocr_processor.analyze_document(&extracted_text);
+            let processing_time = start_time.elapsed().as_millis();
+            
+            // Log da operação na trilha de auditoria
+            let file_name = path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("documento_desconhecido");
+                
+            let _ = log_audit_event(
+                &state,
+                &user.id,
+                &user.username,
+                "OCR_PROCESS",
+                "DOCUMENT",
+                Some(file_path.clone()),
+                Some(file_name.to_string()),
+                None,
+                Some(serde_json::json!({
+                    "document_type": format!("{:?}", metadata.document_type),
+                    "confidence_score": metadata.confidence_score,
+                    "processing_time_ms": processing_time,
+                    "extracted_fields_count": metadata.extracted_fields.len()
+                })),
+                true,
+            ).await;
+            
+            let result = OCRResult {
+                extracted_text: metadata.text_content,
+                document_type: format!("{:?}", metadata.document_type),
+                extracted_fields: metadata.extracted_fields,
+                confidence_score: metadata.confidence_score,
+                processing_time_ms: processing_time,
+            };
+            
+            log::info!("✅ OCR processamento concluído em {}ms", processing_time);
+            Ok(result)
+        } else {
+            Err("OCR Processor não pôde ser inicializado".to_string())
+        }
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+// Obter tipos de documento suportados
+#[tauri::command]
+async fn get_supported_document_types() -> Result<Vec<String>, String> {
+    Ok(ocr_simple::get_simple_supported_types())
+}
+
 // Função para registrar automaticamente logs de auditoria (uso interno)
 pub async fn log_audit_event(
     state: &AppState,
@@ -470,6 +652,186 @@ pub async fn log_audit_event(
     ).map_err(|e| format!("Erro ao criar log de auditoria: {:?}", e))?;
     
     Ok(())
+}
+
+// ================================
+// COMANDOS DE BUSCA FULL-TEXT FTS5
+// ================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SearchResponse {
+    pub results: Vec<SearchResultResponse>,
+    pub total_found: usize,
+    pub search_time_ms: u128,
+    pub indexed_docs: i64,
+    pub total_docs: i64,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SearchResultResponse {
+    pub document_id: String,
+    pub document_name: String,
+    pub document_type: String,
+    pub file_path: String,
+    pub relevance_score: f32,
+    pub matched_content: String,
+    pub created_at: String,
+}
+
+// Buscar documentos por texto
+#[tauri::command]
+async fn search_documents(
+    query: String,
+    limit: Option<usize>,
+    use_fts: Option<bool>,
+    state: State<'_, AppState>,
+) -> Result<SearchResponse, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        let start_time = std::time::Instant::now();
+        
+        if query.trim().is_empty() {
+            return Err("Query de busca não pode estar vazia".to_string());
+        }
+        
+        // Obter estatísticas
+        let (total_docs, indexed_docs) = state.db.get_search_stats(&user.id)
+            .map_err(|e| format!("Erro ao obter estatísticas: {:?}", e))?;
+        
+        // Executar busca (FTS5 ou fallback)
+        let results = if use_fts.unwrap_or(true) {
+            // Tentar busca FTS5 primeiro
+            match state.db.search_documents(&user.id, &query, limit) {
+                Ok(results) => results,
+                Err(e) => {
+                    log::warn!("FTS5 falhou, usando busca simples: {:?}", e);
+                    state.db.simple_search_documents(&user.id, &query, limit)
+                        .map_err(|e| format!("Erro na busca: {:?}", e))?
+                }
+            }
+        } else {
+            // Busca simples
+            state.db.simple_search_documents(&user.id, &query, limit)
+                .map_err(|e| format!("Erro na busca simples: {:?}", e))?
+        };
+        
+        let search_time = start_time.elapsed().as_millis();
+        
+        // Log da busca na trilha de auditoria
+        let _ = log_audit_event(
+            &state,
+            &user.id,
+            &user.username,
+            "SEARCH",
+            "DOCUMENT",
+            None,
+            None,
+            None,
+            Some(serde_json::json!({
+                "query": query,
+                "results_count": results.len(),
+                "search_time_ms": search_time,
+                "fts_enabled": use_fts.unwrap_or(true)
+            })),
+            true,
+        ).await;
+        
+        // Converter para response format
+        let response_results: Vec<SearchResultResponse> = results.into_iter().map(|r| {
+            SearchResultResponse {
+                document_id: r.document_id,
+                document_name: r.document_name,
+                document_type: r.document_type,
+                file_path: r.file_path,
+                relevance_score: r.relevance_score,
+                matched_content: r.matched_content,
+                created_at: r.created_at.format("%d/%m/%Y %H:%M").to_string(),
+            }
+        }).collect();
+        
+        log::info!("🔍 Busca '{}' concluída em {}ms - {} resultados", 
+                  query, search_time, response_results.len());
+        
+        Ok(SearchResponse {
+            results: response_results,
+            total_found: response_results.len(),
+            search_time_ms: search_time,
+            indexed_docs,
+            total_docs,
+        })
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+// Indexar documento após processamento OCR
+#[tauri::command]
+async fn index_document_for_search(
+    document_id: String,
+    extracted_text: String,
+    document_type: String,
+    extracted_fields: serde_json::Value,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        state.db.index_document_content(
+            &document_id,
+            &extracted_text,
+            &document_type,
+            &extracted_fields,
+        ).map_err(|e| format!("Erro ao indexar documento: {:?}", e))?;
+        
+        // Log da indexação
+        let _ = log_audit_event(
+            &state,
+            &user.id,
+            &user.username,
+            "INDEX",
+            "DOCUMENT",
+            Some(document_id),
+            None,
+            None,
+            Some(serde_json::json!({
+                "document_type": document_type,
+                "text_length": extracted_text.len(),
+                "fields_count": extracted_fields.as_object().map(|o| o.len()).unwrap_or(0)
+            })),
+            true,
+        ).await;
+        
+        log::info!("📝 Documento {} indexado com sucesso", document_id);
+        Ok(true)
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+// Obter estatísticas de busca
+#[tauri::command]
+async fn get_search_statistics(
+    state: State<'_, AppState>,
+) -> Result<serde_json::Value, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        let (total_docs, indexed_docs) = state.db.get_search_stats(&user.id)
+            .map_err(|e| format!("Erro ao obter estatísticas: {:?}", e))?;
+        
+        let indexing_percentage = if total_docs > 0 {
+            (indexed_docs as f64 / total_docs as f64 * 100.0) as u32
+        } else {
+            0
+        };
+        
+        Ok(serde_json::json!({
+            "total_documents": total_docs,
+            "indexed_documents": indexed_docs,
+            "indexing_percentage": indexing_percentage,
+            "fts5_available": true
+        }))
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
 }
 
 // Função utilitária para formatar tamanho
@@ -517,6 +879,12 @@ pub fn run() {
             get_recent_activities,
             get_audit_logs,
             verify_audit_chain,
+            process_document_ocr,
+            process_document_simple_ocr,
+            get_supported_document_types,
+            search_documents,
+            index_document_for_search,
+            get_search_statistics,
             backup::verify_backup_file,
             backup::list_available_backups,
             test_audit_security,

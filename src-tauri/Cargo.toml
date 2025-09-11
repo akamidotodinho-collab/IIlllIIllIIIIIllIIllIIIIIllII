@@ -32,7 +32,15 @@ dirs = "4.0"
 sha2 = "0.10"
 log = "0.4"
 env_logger = "0.11"
-rusqlite = { version = "0.28", features = ["bundled", "chrono", "uuid"] }
+rusqlite = { version = "0.32", features = ["bundled", "chrono", "uuid"] }
 zip = "0.6"
 flate2 = "1.0"
 tempfile = "3.8"
+# OCR + Document Processing
+tesseract = "0.14"
+image = { version = "0.24", features = ["jpeg", "png", "tiff"] }
+pdf-extract = "0.7"
+regex = "1.10"
+# Note: Removed candle-core dependencies due to system compatibility issues
+# Threading e concorrência
+rayon = "1.8"

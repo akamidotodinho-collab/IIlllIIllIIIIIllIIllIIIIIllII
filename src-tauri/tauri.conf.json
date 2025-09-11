@@ -30,6 +30,9 @@
     "active": true,
     "targets": ["msi", "nsis"],
     "category": "Productivity",
+    "resources": [
+      "tessdata/*.traineddata"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

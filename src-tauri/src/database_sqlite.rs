@@ -43,6 +43,27 @@ pub struct Activity {
     pub created_at: DateTime<Utc>,
 }
 
+// SISTEMA DE BUSCA FULL-TEXT COM FTS5
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DocumentContent {
+    pub document_id: String,
+    pub extracted_text: String,
+    pub document_type: String,
+    pub extracted_fields: String, // JSON
+    pub indexed_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchResult {
+    pub document_id: String,
+    pub document_name: String,
+    pub document_type: String,
+    pub file_path: String,
+    pub relevance_score: f32,
+    pub matched_content: String,
+    pub created_at: DateTime<Utc>,
+}
+
 // TRILHA DE AUDITORIA LEGAL - IMUTÁVEL E CRIPTOGRAFICAMENTE SEGURA
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AuditLog {
@@ -209,6 +230,84 @@ impl Database {
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_resource ON audit_logs(resource_type, resource_id)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_current_hash ON audit_logs(current_hash)", [])?;
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_sequence_id ON audit_logs(sequence_id)", [])?;
+        
+        // ==================================================================================
+        // SISTEMA FTS5 COMPLETO - BUSCA FULL-TEXT DE ALTA PERFORMANCE
+        // ==================================================================================
+        
+        // Tabela de conteúdo dos documentos (extraído via OCR)
+        conn.execute(r#"
+            CREATE TABLE IF NOT EXISTS document_content (
+                document_id TEXT PRIMARY KEY,
+                extracted_text TEXT NOT NULL DEFAULT '',
+                document_type TEXT NOT NULL DEFAULT 'generic',
+                extracted_fields TEXT NOT NULL DEFAULT '{}',
+                indexed_at TEXT NOT NULL,
+                FOREIGN KEY (document_id) REFERENCES documents (id) ON DELETE CASCADE
+            )
+        "#, [])?;
+        
+        // TABELA VIRTUAL FTS5 - MOTOR DE BUSCA FULL-TEXT
+        // Usando configuração otimizada para performance máxima
+        conn.execute(r#"
+            CREATE VIRTUAL TABLE IF NOT EXISTS documents_fts USING fts5(
+                document_id UNINDEXED,
+                extracted_text,
+                document_type UNINDEXED,
+                extracted_fields,
+                content='document_content',
+                content_rowid='document_id',
+                tokenize='unicode61 remove_diacritics 1'
+            )
+        "#, [])?;
+        
+        // TRIGGERS CRÍTICOS - SINCRONIZAÇÃO AUTOMÁTICA FTS5
+        // Inserção automática no FTS5 quando conteúdo é adicionado
+        conn.execute(r#"
+            CREATE TRIGGER IF NOT EXISTS documents_fts_insert 
+            AFTER INSERT ON document_content 
+            BEGIN
+                INSERT INTO documents_fts(document_id, extracted_text, document_type, extracted_fields)
+                VALUES (NEW.document_id, NEW.extracted_text, NEW.document_type, NEW.extracted_fields);
+            END
+        "#, [])?;
+        
+        // Atualização automática do FTS5 quando conteúdo é modificado
+        conn.execute(r#"
+            CREATE TRIGGER IF NOT EXISTS documents_fts_update
+            AFTER UPDATE ON document_content
+            BEGIN
+                UPDATE documents_fts 
+                SET extracted_text = NEW.extracted_text,
+                    document_type = NEW.document_type,
+                    extracted_fields = NEW.extracted_fields
+                WHERE document_id = NEW.document_id;
+            END
+        "#, [])?;
+        
+        // Remoção automática do FTS5 quando conteúdo é deletado
+        conn.execute(r#"
+            CREATE TRIGGER IF NOT EXISTS documents_fts_delete
+            AFTER DELETE ON document_content
+            BEGIN
+                DELETE FROM documents_fts WHERE document_id = OLD.document_id;
+            END
+        "#, [])?;
+        
+        // ÍNDICES PARA PERFORMANCE DE BUSCA
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_document_content_document_id ON document_content(document_id)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_document_content_document_type ON document_content(document_type)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_document_content_indexed_at ON document_content(indexed_at)", [])?;
+        
+        log::info!("📊 Schema FTS5 criado com sucesso - busca full-text ativada");
+        
+        // INICIALIZAR CONFIGURAÇÃO FTS5 (se necessário)
+        // Rebuild do índice FTS5 caso exista conteúdo sem indexação
+        let rebuild_result = conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')", []);
+        match rebuild_result {
+            Ok(_) => log::info!("🔧 Índice FTS5 reconstruído"),
+            Err(_) => log::debug!("📝 Índice FTS5 não necessita reconstrução")
+        }
         
         Ok(())
     }
@@ -766,6 +865,172 @@ impl Database {
             let last_log: String = stmt.query_row([], |row| row.get(0))?;
             
             Ok((total_logs, Some(first_log), Some(last_log)))
+        })
+    }
+    
+    // ================================
+    // SISTEMA DE BUSCA FULL-TEXT FTS5
+    // ================================
+    
+    // Indexar conteúdo de documento para busca
+    pub fn index_document_content(
+        &self,
+        document_id: &str,
+        extracted_text: &str,
+        document_type: &str,
+        extracted_fields: &serde_json::Value,
+    ) -> SqliteResult<()> {
+        self.execute_with_retry(|conn| {
+            let fields_json = extracted_fields.to_string();
+            let indexed_at = Utc::now().to_rfc3339();
+            
+            // Inserir ou atualizar conteúdo
+            conn.execute(
+                r#"INSERT OR REPLACE INTO document_content 
+                   (document_id, extracted_text, document_type, extracted_fields, indexed_at) 
+                   VALUES (?1, ?2, ?3, ?4, ?5)"#,
+                params![document_id, extracted_text, document_type, fields_json, indexed_at]
+            )?;
+            
+            log::info!("📝 Documento {} indexado para busca ({} caracteres)", 
+                      document_id, extracted_text.len());
+            Ok(())
+        })
+    }
+    
+    // Busca full-text nos documentos
+    pub fn search_documents(
+        &self,
+        user_id: &str,
+        query: &str,
+        limit: Option<usize>,
+    ) -> SqliteResult<Vec<SearchResult>> {
+        self.execute_with_retry(|conn| {
+            let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or(" LIMIT 50".to_string());
+            
+            // Query FTS5 com ranking
+            let search_query = format!(
+                r#"SELECT 
+                    fts.document_id,
+                    d.name as document_name,
+                    fts.document_type,
+                    d.file_path,
+                    bm25(fts) as relevance_score,
+                    snippet(fts, 2, '<mark>', '</mark>', '...', 64) as matched_content,
+                    d.created_at
+                   FROM documents_fts fts
+                   JOIN documents d ON d.id = fts.document_id
+                   WHERE d.user_id = ?1 AND fts MATCH ?2
+                   ORDER BY relevance_score ASC{}"#,
+                limit_clause
+            );
+            
+            let mut stmt = conn.prepare(&search_query)?;
+            let search_iter = stmt.query_map([user_id, query], |row| {
+                let created_at_str: String = row.get(6)?;
+                Ok(SearchResult {
+                    document_id: row.get(0)?,
+                    document_name: row.get(1)?,
+                    document_type: row.get(2)?,
+                    file_path: row.get(3)?,
+                    relevance_score: row.get::<_, f64>(4)? as f32,
+                    matched_content: row.get(5)?,
+                    created_at: DateTime::parse_from_rfc3339(&created_at_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(6, "created_at".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                })
+            })?;
+            
+            let mut results = Vec::new();
+            for result in search_iter {
+                results.push(result?);
+            }
+            
+            log::info!("🔍 Busca '{}' retornou {} resultados para user {}", 
+                      query, results.len(), user_id);
+            Ok(results)
+        })
+    }
+    
+    // Busca simples nos documentos (fallback se FTS5 não disponível)
+    pub fn simple_search_documents(
+        &self,
+        user_id: &str,
+        query: &str,
+        limit: Option<usize>,
+    ) -> SqliteResult<Vec<SearchResult>> {
+        self.execute_with_retry(|conn| {
+            let limit_clause = limit.map(|l| format!(" LIMIT {}", l)).unwrap_or(" LIMIT 50".to_string());
+            
+            // Query simples com LIKE
+            let search_query = format!(
+                r#"SELECT 
+                    d.id,
+                    d.name,
+                    COALESCE(dc.document_type, 'Generico') as document_type,
+                    d.file_path,
+                    1.0 as relevance_score,
+                    SUBSTR(COALESCE(dc.extracted_text, d.name), 1, 200) as matched_content,
+                    d.created_at
+                   FROM documents d
+                   LEFT JOIN document_content dc ON dc.document_id = d.id
+                   WHERE d.user_id = ?1 
+                   AND (d.name LIKE ?2 OR dc.extracted_text LIKE ?2 OR dc.extracted_fields LIKE ?2)
+                   ORDER BY d.created_at DESC{}"#,
+                limit_clause
+            );
+            
+            let like_query = format!("%{}%", query);
+            let mut stmt = conn.prepare(&search_query)?;
+            let search_iter = stmt.query_map([user_id, &like_query], |row| {
+                let created_at_str: String = row.get(6)?;
+                Ok(SearchResult {
+                    document_id: row.get(0)?,
+                    document_name: row.get(1)?,
+                    document_type: row.get(2)?,
+                    file_path: row.get(3)?,
+                    relevance_score: row.get::<_, f64>(4)? as f32,
+                    matched_content: row.get(5)?,
+                    created_at: DateTime::parse_from_rfc3339(&created_at_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(6, "created_at".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                })
+            })?;
+            
+            let mut results = Vec::new();
+            for result in search_iter {
+                results.push(result?);
+            }
+            
+            Ok(results)
+        })
+    }
+    
+    // Estatísticas de busca
+    pub fn get_search_stats(&self, user_id: &str) -> SqliteResult<(i64, i64)> {
+        self.execute_with_retry(|conn| {
+            // Total de documentos do usuário
+            let mut stmt = conn.prepare("SELECT COUNT(*) FROM documents WHERE user_id = ?1")?;
+            let total_docs: i64 = stmt.query_row([user_id], |row| row.get(0))?;
+            
+            // Documentos indexados
+            let mut stmt = conn.prepare(
+                "SELECT COUNT(*) FROM document_content dc 
+                 JOIN documents d ON d.id = dc.document_id 
+                 WHERE d.user_id = ?1"
+            )?;
+            let indexed_docs: i64 = stmt.query_row([user_id], |row| row.get(0)).unwrap_or(0);
+            
+            Ok((total_docs, indexed_docs))
+        })
+    }
+    
+    // Recriar índices FTS5 (manutenção)
+    pub fn rebuild_search_index(&self) -> SqliteResult<()> {
+        self.execute_with_retry(|conn| {
+            conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')", [])?;
+            log::info!("🔄 Índice de busca FTS5 reconstruído");
+            Ok(())
         })
     }
 }

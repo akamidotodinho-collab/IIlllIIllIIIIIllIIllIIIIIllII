@@ -31,6 +31,9 @@ export default defineConfig({
     hmr: {
       host: '0.0.0.0',
       port: 5000
+    },
+    watch: {
+      ignored: ['**/.local/**', '**/src-tauri/**', '**/target/**', '**/.cargo/**']
     }
   },
   optimizeDeps: {

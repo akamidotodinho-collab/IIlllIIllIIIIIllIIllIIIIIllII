@@ -3,13 +3,18 @@
 
 fn main() {
     // Inicializar logger para debug
-    env_logger::init();
+    env_logger::Builder::from_default_env()
+        .filter_level(log::LevelFilter::Info)
+        .init();
+    
     log::info!("🚀 Iniciando ARKIVE Desktop...");
     
-    // Capturar panics para debug
+    // Capturar panics para debug - com output visível
     std::panic::set_hook(Box::new(|panic_info| {
         log::error!("❌ PANIC: {:?}", panic_info);
         eprintln!("ARKIVE CRASH: {:?}", panic_info);
+        eprintln!("Pressione Enter para fechar...");
+        std::io::stdin().read_line(&mut String::new()).ok();
     }));
     
     log::info!("📦 Inicializando aplicação...");

@@ -29,6 +29,7 @@ export interface OCRResult {
   extracted_fields: Record<string, any>;
   confidence_score: number;
   processing_time_ms: number;
+  processing_method?: string;
 }
 
 export interface SearchResponse {

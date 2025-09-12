@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Upload, FileText, Image, Download, Trash2, Plus, Shield, Home, User, LogOut } from 'lucide-react';
 import AuditTrail from './components/AuditTrail';
 import SearchInterface from './components/SearchInterface';
-import { AuthAPI, DocumentAPI, StatsAPI, AppAPI, type Document as APIDocument, type User as APIUser, type AppStats } from './services/documentApi';
+import { AuthAPI, DocumentAPI, SearchAPI, StatsAPI, AppAPI, type Document as APIDocument, type User as APIUser, type AppStats } from './services/documentApi';
 
 // Interface local para compatibilidade
 interface Document {
@@ -341,17 +341,10 @@ export default function SimpleApp() {
             </div>
           </div>
         </div>
+        
+        <div className="px-6 py-3 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                ARKIVE
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Guardou, Achou! - {user}
-              </p>
-            </div>
-            
-            <div className="flex items-center gap-4">
+            <nav className="flex space-x-1">
               <button 
                 onClick={() => setActiveTab('documents')}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
@@ -472,6 +465,8 @@ export default function SimpleApp() {
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
+              </div>
+            ))}
               </div>
             ))}
           </div>

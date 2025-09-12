@@ -19,7 +19,7 @@ export default function SearchInterface({ onResultSelect, className = '' }: Sear
   const [useFTS, setUseFTS] = useState(true);
   
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const debounceTimerRef = useRef<number>();
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Stats de indexação
   const [indexStats, setIndexStats] = useState<{

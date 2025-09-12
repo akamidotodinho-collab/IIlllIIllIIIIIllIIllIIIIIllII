@@ -127,37 +127,81 @@ export default function SimpleApp() {
     doc.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Upload de arquivo (versão simplificada)
-  const handleUpload = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.multiple = true;
-    input.accept = '.pdf,.jpg,.png,.gif,.doc,.docx,.xls,.xlsx';
-    
-    input.onchange = (e) => {
-      const files = (e.target as HTMLInputElement).files;
-      if (!files) return;
+  // Upload real integrado com backend
+  const handleUpload = async () => {
+    try {
+      // Usar Tauri dialog para seleção de arquivos
+      const selectedFiles = await AppAPI.selectFiles();
+      if (!selectedFiles || selectedFiles.length === 0) {
+        return;
+      }
 
-      Array.from(files).forEach(file => {
-        const newDoc: Document = {
-          id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
-          name: file.name,
-          size: file.size,
-          type: file.type || 'application/octet-stream',
-          date: new Date().toLocaleString('pt-BR')
-        };
-        
-        setDocuments(prev => [newDoc, ...prev]);
-      });
-    };
-    
-    input.click();
+      setIsLoading(true);
+      AppAPI.showSuccess(`Processando ${selectedFiles.length} arquivo(s)...`);
+
+      for (const filePath of selectedFiles) {
+        try {
+          console.log(`📁 Processando: ${filePath}`);
+          
+          // 1. Processar OCR + extrair metadados
+          const ocrResult = await DocumentAPI.processDocumentOCR(filePath);
+          console.log(`🔍 OCR concluído: ${ocrResult.document_type}`);
+
+          // 2. Criar documento no backend
+          const docResult = await DocumentAPI.createDocument(filePath, ocrResult);
+          console.log(`📄 Documento criado no backend: ${docResult.id}`);
+
+          // 3. Indexar para busca FTS5
+          await SearchAPI.indexDocument(
+            docResult.id, 
+            ocrResult.extracted_text, 
+            ocrResult.document_type, 
+            ocrResult.extracted_fields
+          );
+          console.log(`✅ Documento indexado para busca FTS5`);
+
+        } catch (error) {
+          console.error(`❌ Erro ao processar ${filePath}:`, error);
+          AppAPI.showError(`Falha ao processar: ${filePath.split('/').pop()}`);
+        }
+      }
+
+      // 3. Recarregar lista de documentos
+      await loadAppData();
+      AppAPI.showSuccess(`✅ ${selectedFiles.length} documento(s) adicionado(s) com sucesso!`);
+      
+    } catch (error) {
+      console.error('❌ Erro no upload:', error);
+      AppAPI.showError('Erro ao selecionar ou processar arquivos');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  // Remover documento
-  const handleDelete = (id: string) => {
-    if (confirm('Remover este documento?')) {
-      setDocuments(prev => prev.filter(doc => doc.id !== id));
+  // Deletar documento real do backend
+  const handleDelete = async (id: string) => {
+    const doc = documents.find(d => d.id === id);
+    if (!doc) return;
+
+    if (!confirm(`Tem certeza que deseja excluir "${doc.name}"?\n\nEsta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      
+      // Chamar API para deletar (precisa ser implementado no backend)
+      await DocumentAPI.deleteDocument(id);
+      
+      // Recarregar lista
+      await loadAppData();
+      AppAPI.showSuccess(`Documento "${doc.name}" excluído com sucesso`);
+      
+    } catch (error) {
+      console.error('❌ Erro ao deletar documento:', error);
+      AppAPI.showError(`Erro ao excluir "${doc.name}"`);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -364,6 +408,18 @@ export default function SimpleApp() {
       <main className="p-6">
         {activeTab === 'audit' ? (
           <AuditTrail />
+        ) : activeTab === 'search' ? (
+          <div className="max-w-4xl mx-auto">
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">
+                Busca Inteligente FTS5
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400">
+                Busque instantaneamente em todo conteúdo dos documentos com tecnologia de busca enterprise-grade
+              </p>
+            </div>
+            <SearchInterface />
+          </div>
         ) : (
           <>
             {documents.length === 0 ? (

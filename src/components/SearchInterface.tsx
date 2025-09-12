@@ -101,12 +101,31 @@ export default function SearchInterface({ onResultSelect, className = '' }: Sear
     };
   }, [query, useFTS]);
 
-  // Highlight de termos encontrados
-  const highlightMatches = (text: string, searchTerm: string): string => {
-    if (!searchTerm.trim()) return text;
+  // Função segura para destacar termos encontrados (sem XSS)
+  const highlightMatchesSafe = (text: string, searchTerm: string): React.ReactNode => {
+    if (!searchTerm.trim() || !text) return text;
     
-    const regex = new RegExp(`(${searchTerm})`, 'gi');
-    return text.replace(regex, '<mark class="bg-yellow-200 dark:bg-yellow-800 px-1 rounded">$1</mark>');
+    // Escapar caracteres especiais do regex
+    const escapedTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(${escapedTerm})`, 'gi');
+    
+    // Dividir texto e criar elementos React seguros
+    const parts = text.split(regex);
+    
+    return parts.map((part, index) => {
+      // Verificar se é um match (case insensitive)
+      if (regex.test(part)) {
+        return (
+          <mark 
+            key={index} 
+            className="bg-yellow-200 dark:bg-yellow-700 px-1 rounded font-medium"
+          >
+            {part}
+          </mark>
+        );
+      }
+      return part;
+    });
   };
 
   // Formatar tipo de documento
@@ -263,12 +282,9 @@ export default function SearchInterface({ onResultSelect, className = '' }: Sear
                     </div>
                     
                     {result.matched_content && (
-                      <p 
-                        className="text-sm text-gray-600 dark:text-gray-400 mt-2"
-                        dangerouslySetInnerHTML={{ 
-                          __html: highlightMatches(result.matched_content, query) 
-                        }}
-                      />
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+                        {highlightMatchesSafe(result.matched_content, query)}
+                      </p>
                     )}
                     
                     <div className="flex items-center gap-4 mt-2 text-xs text-gray-500">

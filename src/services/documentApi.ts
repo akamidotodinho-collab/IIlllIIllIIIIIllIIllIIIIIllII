@@ -123,7 +123,7 @@ class AuthAPI {
 // API DE DOCUMENTOS
 // ================================
 
-class DocumentAPI {
+export class DocumentAPI {
   // Obter lista de documentos
   static async getDocuments(): Promise<Document[]> {
     try {
@@ -153,6 +153,35 @@ class DocumentAPI {
     }
   }
 
+  // Criar documento no backend
+  static async createDocument(filePath: string, ocrResult: OCRResult): Promise<{id: string}> {
+    try {
+      const result = await invoke<{id: string}>('create_document', {
+        filePath,
+        documentType: ocrResult.document_type,
+        extractedText: ocrResult.extracted_text,
+        extractedFields: ocrResult.extracted_fields,
+        processingMethod: ocrResult.processing_method
+      });
+      console.log(`📄 Documento criado: ${result.id}`);
+      return result;
+    } catch (error) {
+      console.error('❌ Erro ao criar documento:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  // Deletar documento do backend
+  static async deleteDocument(documentId: string): Promise<void> {
+    try {
+      await invoke('delete_document', { documentId });
+      console.log(`🗑️ Documento ${documentId} excluído com sucesso`);
+    } catch (error) {
+      console.error('❌ Erro ao deletar documento:', error);
+      throw new Error(String(error));
+    }
+  }
+
   // Obter tipos de documento suportados
   static async getSupportedTypes(): Promise<string[]> {
     try {
@@ -169,7 +198,7 @@ class DocumentAPI {
 // API DE BUSCA FTS5
 // ================================
 
-class SearchAPI {
+export class SearchAPI {
   // Buscar documentos por texto
   static async searchDocuments(
     query: string, 

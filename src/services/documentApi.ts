@@ -183,6 +183,20 @@ export class DocumentAPI {
     }
   }
 
+  // Download nativo de documento
+  static async downloadDocument(documentId: string): Promise<boolean> {
+    try {
+      const result = await invoke<boolean>('download_document', { 
+        document_id: documentId 
+      });
+      console.log(`📥 Download iniciado: ${documentId}`);
+      return result;
+    } catch (error) {
+      console.error('❌ Erro no download:', error);
+      throw new Error(String(error));
+    }
+  }
+
   // Obter tipos de documento suportados
   static async getSupportedTypes(): Promise<string[]> {
     try {

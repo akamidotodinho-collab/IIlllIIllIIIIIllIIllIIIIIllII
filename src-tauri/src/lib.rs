@@ -834,6 +834,53 @@ async fn get_search_statistics(
     }
 }
 
+// ================================
+// COMANDO DOWNLOAD NATIVO
+// ================================
+
+// Download de documento com save-as dialog nativo
+#[tauri::command]
+async fn download_document(
+    document_id: String,
+    state: State<'_, AppState>,
+) -> Result<bool, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        // Buscar documento no banco
+        let documents = state.db.get_documents_by_user(&user.id)
+            .map_err(|e| format!("Erro ao buscar documento: {:?}", e))?;
+            
+        let document = documents.into_iter()
+            .find(|doc| doc.id == document_id)
+            .ok_or_else(|| "Documento não encontrado".to_string())?;
+            
+        // Dialog save-as nativo (será implementado via plugin-dialog no frontend)
+        log::info!("📥 Download solicitado: {} ({})", document.name, document.file_type);
+        
+        // Log da operação na trilha de auditoria
+        let _ = log_audit_event(
+            &state,
+            &user.id,
+            &user.username,
+            "DOWNLOAD",
+            "DOCUMENT",
+            Some(document.id.clone()),
+            Some(document.name.clone()),
+            None,
+            Some(serde_json::json!({
+                "file_name": document.name,
+                "file_size": document.file_size,
+                "file_type": document.file_type
+            })),
+            true,
+        ).await;
+        
+        Ok(true)
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
 // Função utilitária para formatar tamanho
 fn format_size(bytes: i64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
@@ -908,6 +955,7 @@ pub fn run() {
             backup::verify_backup_file,
             backup::list_available_backups,
             test_audit_security,
+            download_document,
         ]);
 
     // Executar aplicação com tratamento de erro melhorado

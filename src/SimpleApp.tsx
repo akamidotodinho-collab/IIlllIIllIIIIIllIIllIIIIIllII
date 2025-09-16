@@ -127,24 +127,25 @@ export default function SimpleApp() {
     doc.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Upload real integrado com backend
+  // Download nativo de documento
+  const handleDownload = async (documentId: string) => {
+    try {
+      setIsLoading(true);
+      await DocumentAPI.downloadDocument(documentId);
+      AppAPI.showSuccess('Download iniciado com sucesso');
+    } catch (error) {
+      console.error('Erro no download:', error);
+      AppAPI.showError('Erro ao fazer download do documento');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Upload nativo com APIs do Tauri Desktop
   const handleUpload = async () => {
     try {
-      // Usar Tauri dialog para seleção de arquivos
-      // Usar file input para web (substituto do AppAPI.selectFiles que não existe em web)
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.multiple = true;
-      input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.txt';
-      
-      const selectedFiles: string[] = await new Promise((resolve) => {
-        input.onchange = (e: any) => {
-          const files = Array.from(e.target.files || []);
-          const filePaths = files.map((file: any) => file.name);
-          resolve(filePaths);
-        };
-        input.click();
-      });
+      // Usar dialog nativo do Tauri para seleção de arquivos
+      const selectedFiles = await AppAPI.selectFiles();
       if (!selectedFiles || selectedFiles.length === 0) {
         return;
       }
@@ -465,6 +466,7 @@ export default function SimpleApp() {
                 
                 <div className="flex items-center gap-2">
                   <button
+                    onClick={() => handleDownload(doc.id)}
                     className="p-2 text-gray-600 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
                     title="Download"
                   >

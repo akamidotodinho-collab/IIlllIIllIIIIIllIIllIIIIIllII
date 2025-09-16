@@ -131,7 +131,20 @@ export default function SimpleApp() {
   const handleUpload = async () => {
     try {
       // Usar Tauri dialog para seleção de arquivos
-      const selectedFiles = await AppAPI.selectFiles();
+      // Usar file input para web (substituto do AppAPI.selectFiles que não existe em web)
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = '.pdf,.doc,.docx,.jpg,.jpeg,.png,.txt';
+      
+      const selectedFiles: string[] = await new Promise((resolve) => {
+        input.onchange = (e: any) => {
+          const files = Array.from(e.target.files || []);
+          const filePaths = files.map((file: any) => file.name);
+          resolve(filePaths);
+        };
+        input.click();
+      });
       if (!selectedFiles || selectedFiles.length === 0) {
         return;
       }
@@ -378,7 +391,7 @@ export default function SimpleApp() {
                   Adicionar
                 </button>
               )}
-            </div>
+            </nav>
           </div>
           
           {/* Busca - apenas para documentos */}
@@ -465,8 +478,6 @@ export default function SimpleApp() {
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>
-              </div>
-            ))}
               </div>
             ))}
           </div>

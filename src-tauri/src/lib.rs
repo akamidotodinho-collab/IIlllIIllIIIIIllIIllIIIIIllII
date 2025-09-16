@@ -867,7 +867,27 @@ pub fn run() {
     };
 
     log::info!("🚀 Iniciando aplicação Tauri...");
-    if let Err(e) = tauri::Builder::default()
+    
+    // Configurar builder do Tauri com tratamento robusto de erro
+    let builder = tauri::Builder::default()
+        .plugin(tauri_plugin_log::Builder::default()
+            .level(log::LevelFilter::Info)
+            .build())
+        .setup(|app| {
+            // Inicializar AppState na setup do Tauri para melhor tratamento de erro
+            log::info!("🔧 Configurando aplicação...");
+            
+            // Criar diretório de logs para Windows
+            if let Some(app_dir) = app.path_resolver().app_data_dir() {
+                let log_dir = app_dir.join("logs");
+                if let Err(e) = std::fs::create_dir_all(&log_dir) {
+                    log::warn!("Não foi possível criar diretório de logs: {:?}", e);
+                }
+            }
+            
+            log::info!("✅ Setup concluído com sucesso");
+            Ok(())
+        })
         .manage(app_state)
         .invoke_handler(tauri::generate_handler![
             login,
@@ -888,11 +908,31 @@ pub fn run() {
             backup::verify_backup_file,
             backup::list_available_backups,
             test_audit_security,
-        ])
-        .run(tauri::generate_context!())
-    {
+        ]);
+
+    // Executar aplicação com tratamento de erro melhorado
+    if let Err(e) = builder.run(tauri::generate_context!()) {
         log::error!("❌ Erro ao executar aplicação Tauri: {:?}", e);
-        eprintln!("ERRO ARKIVE: Falha ao iniciar aplicação: {:?}", e);
+        
+        // Tentar mostrar erro para o usuário no Windows
+        eprintln!("ERRO ARKIVE: {}", e);
+        
+        // Se for erro crítico de inicialização, tentar mostrar dialog
+        if let Ok(_) = std::env::var("DISPLAY") {
+            // Linux/macOS - mostrar no terminal
+            eprintln!("Por favor, verifique as dependências do sistema.");
+        } else {
+            // Windows - tentar criar arquivo de erro visível
+            if let Ok(mut error_file) = std::fs::File::create("arkive_error.txt") {
+                use std::io::Write;
+                let _ = writeln!(error_file, "ERRO ARKIVE: {}", e);
+                let _ = writeln!(error_file, "\nPossíveis soluções:");
+                let _ = writeln!(error_file, "1. Instalar WebView2: winget install Microsoft.EdgeWebView2Runtime");
+                let _ = writeln!(error_file, "2. Instalar Visual C++: winget install Microsoft.VCRedist.2015+");
+                let _ = writeln!(error_file, "3. Executar como administrador");
+            }
+        }
+        
         std::process::exit(1);
     }
 }

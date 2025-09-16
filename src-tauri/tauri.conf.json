@@ -45,7 +45,7 @@
       "digestAlgorithm": "sha256",
       "timestampUrl": "",
       "webviewInstallMode": {
-        "type": "skip"
+        "type": "downloadBootstrapper"
       },
       "allowDowngrades": false,
       "wix": {

@@ -9,12 +9,15 @@ fn main() {
     
     log::info!("🚀 Iniciando ARKIVE Desktop...");
     
-    // Capturar panics para debug - com output visível
+    // Capturar panics e escrever para arquivo de log (Windows compatível)
     std::panic::set_hook(Box::new(|panic_info| {
         log::error!("❌ PANIC: {:?}", panic_info);
-        eprintln!("ARKIVE CRASH: {:?}", panic_info);
-        eprintln!("Pressione Enter para fechar...");
-        std::io::stdin().read_line(&mut String::new()).ok();
+        // Não tentar ler stdin no Windows - causa travamento
+        if let Some(location) = panic_info.location() {
+            eprintln!("ARKIVE CRASH: {}:{} - {}", location.file(), location.line(), panic_info);
+        } else {
+            eprintln!("ARKIVE CRASH: {:?}", panic_info);
+        }
     }));
     
     log::info!("📦 Inicializando aplicação...");

@@ -2,7 +2,7 @@
 
 ## Overview
 
-ARKIVE é um sistema desktop inteligente de gerenciamento de documentos desenvolvido com Tauri 2.2, Rust e React. A aplicação oferece funcionalidades de upload, busca, preview e organização de arquivos com interface nativa, autenticação segura usando bcrypt, e sistema de backup integrado. O projeto utiliza SQLite para armazenamento local de dados e oferece temas claro/escuro para melhor experiência do usuário.
+ARKIVE é um **sistema desktop nativo** de gerenciamento de documentos desenvolvido com Tauri 2.2, Rust e React. O foco é ser primariamente uma aplicação desktop com funcionalidades de upload via dialog nativo, processamento OCR offline, busca instantânea FTS5, e trilha de auditoria completa. A aplicação utiliza APIs nativas do Tauri para file system, dialogs e funcionalidades do sistema operacional. O modo web é disponibilizado apenas para preview quando solicitado.
 
 ## User Preferences
 
@@ -24,10 +24,12 @@ Preferred communication style: Simple, everyday language.
 - **Authentication**: bcrypt para hash seguro de senhas
 - **File System**: Async file operations com isolamento por usuário
 
-### Desktop Integration
+### Desktop Integration (NATIVO)
+- **Native APIs**: Upload via dialog nativo, download com save-as, sem substitutos web
 - **Window Management**: Configuração nativa com dimensões mínimas (900x600) e redimensionamento
-- **Security**: CSP rigoroso e isolamento de contextos web/native
-- **Build Targets**: MSI e NSIS installers para Windows
+- **Security**: CSP com protocolos Tauri (tauri:, asset:, ipc:) para comunicação nativa
+- **Build Pipeline**: GitHub Actions automatizado para MSI/NSIS Windows
+- **WebView2**: Integração nativa Windows com instalação automática
 - **Icon System**: Multi-resolution icons (32x32, 128x128, ICO, ICNS)
 
 ### Data Storage Solutions
@@ -43,8 +45,10 @@ Preferred communication style: Simple, everyday language.
 - **Access Control**: Validação de permissões a nível de arquivo e operação
 
 ### Build and Development
-- **Development Server**: Hot reload com Vite + Tauri dev mode
-- **Production Build**: Otimização automática com minificação e tree-shaking
+- **Desktop-First**: APIs nativas Tauri, sem fallbacks web para funcionalidades core
+- **Development Server**: Hot reload com Vite + Tauri dev mode (Replit usa modo web apenas para preview)
+- **Windows Build**: GitHub Actions com WebView2, VC++ Redist, e Tesseract OCR opcional
+- **Production Build**: MSI/NSIS installers com dependências nativas bundled
 - **Asset Management**: Bundling automático de recursos estáticos
 - **TypeScript**: Type checking rigoroso em todo o codebase
 

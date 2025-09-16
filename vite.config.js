@@ -28,6 +28,11 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5000,
     strictPort: true,
+    allowedHosts: [
+      '.replit.dev',
+      '.repl.co',
+      '23da8a05-b05a-4581-bacf-c158de98a337-00-19py2itl64pku.kirk.replit.dev'
+    ],
     hmr: {
       host: '0.0.0.0',
       port: 5000

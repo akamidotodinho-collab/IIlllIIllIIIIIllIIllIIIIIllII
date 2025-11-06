@@ -13,8 +13,19 @@ jobs:
     runs-on: windows-latest
     
     steps:
+    - name: Enable Git long paths
+      run: git config --global core.longpaths true
+      
+    - name: Enable Windows long paths support
+      run: |
+        New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" `
+          -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+      shell: powershell
+      
     - name: Checkout code
       uses: actions/checkout@v4
+      with:
+        fetch-depth: 1
       
     - name: Setup Node.js
       uses: actions/setup-node@v4
@@ -62,6 +73,7 @@ jobs:
       uses: tauri-apps/tauri-action@v0
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        CARGO_INCREMENTAL: 0
       with:
         tagName: ${{ github.ref_name }}
         releaseName: 'ARKIVE Desktop v__VERSION__'

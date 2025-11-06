@@ -1,0 +1,279 @@
+ Compiling fallible-streaming-iterator v0.1.9
+   Compiling zeroize v1.8.1
+   Compiling fastrand v2.3.0
+   Compiling constant_time_eq v0.1.5
+   Compiling fallible-iterator v0.3.0
+   Compiling bcrypt v0.15.1
+   Compiling rusqlite v0.32.1
+   Compiling zip v0.6.6
+   Compiling env_logger v0.11.8
+   Compiling tempfile v3.22.0
+   Compiling image v0.24.9
+   Compiling dirs v4.0.0
+error[E0433]: failed to resolve: could not find `api` in `tauri`
+ --> src\desktop.rs:1:12
+  |
+1 | use tauri::api::dialog::FileDialogBuilder;
+  |            ^^^ could not find `api` in `tauri`
+error[E0432]: unresolved import `tokio::process`
+   --> src\ocr_simple.rs:8:12
+    |
+  8 | use tokio::process::Command;
+    |            ^^^^^^^ could not find `process` in `tokio`
+    |
+note: found an item that was configured out
+   --> C:\Users\runneradmin\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\tokio-1.47.1\src\lib.rs:513:13
+    |
+512 | / cfg_process! {
+513 | |     pub mod process;
+    | |             ^^^^^^^
+514 | | }
+    | |_- the item is gated behind the `process` feature
+error: cannot find macro `__cmd__test_audit_security` in this scope
+   --> src\lib.rs:957:13
+    |
+957 |             test_audit_security,
+    |             ^^^^^^^^^^^^^^^^^^^
+warning: unused import: `tempfile::NamedTempFile`
+ --> src\ocr_simple.rs:9:5
+  |
+9 | use tempfile::NamedTempFile;
+  |     ^^^^^^^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+warning: unused imports: `AuditLog` and `SearchResult`
+  --> src\lib.rs:12:39
+   |
+12 | use database_sqlite::{Database, User, AuditLog, SearchResult};
+   |                                       ^^^^^^^^  ^^^^^^^^^^^^
+warning: unused import: `SimpleOCRProcessor`
+  --> src\lib.rs:14:18
+   |
+14 | use ocr_simple::{SimpleOCRProcessor, SimpleOCRResult, create_simple_ocr_processor};
+   |                  ^^^^^^^^^^^^^^^^^^
+error[E0382]: borrow of moved value: `response_results`
+   --> src\lib.rs:757:26
+    |
+740 |         let response_results: Vec<SearchResultResponse> = results.into_iter().map(|r| {
+    |             ---------------- move occurs because `response_results` has type `Vec<SearchResultResponse>`, which does not implement the `Copy` trait
+...
+756 |             results: response_results,
+    |                      ---------------- value moved here
+757 |             total_found: response_results.len(),
+    |                          ^^^^^^^^^^^^^^^^ value borrowed here after move
+    |
+note: if `SearchResultResponse` implemented `Clone`, you could clone the value
+   --> src\lib.rs:671:1
+    |
+671 | pub struct SearchResultResponse {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ consider implementing `Clone` for this type
+...
+756 |             results: response_results,
+    |                      ---------------- you could clone this value
+error[E0382]: borrow of moved value: `document_id`
+   --> src\lib.rs:803:59
+    |
+770 |     document_id: String,
+    |     ----------- move occurs because `document_id` has type `std::string::String`, which does not implement the `Copy` trait
+...
+792 |             Some(document_id),
+    |                  ----------- value moved here
+...
+803 |         log::info!("📝 Documento {} indexado com sucesso", document_id);
+    |                                                            ^^^^^^^^^^^ value borrowed here after move
+    |
+    = note: this error originates in the macro `$crate::__private_api::format_args` which comes from the expansion of the macro `log::info` (in Nightly builds, run with -Z macro-backtrace for more info)
+help: consider cloning the value if the performance cost is acceptable
+    |
+792 |             Some(document_id.clone()),
+    |                             ++++++++
+error[E0599]: no method named `path_resolver` found for mutable reference `&mut tauri::App` in the current scope
+   --> src\lib.rs:928:40
+    |
+928 |             if let Some(app_dir) = app.path_resolver().app_data_dir() {
+    |                                        ^^^^^^^^^^^^^ method not found in `&mut tauri::App`
+warning: unused import: `std::io::Write`
+  --> src\ocr_simple.rs:10:5
+   |
+10 | use std::io::Write;
+   |     ^^^^^^^^^^^^^^
+error[E0507]: cannot move out of `metadata`, a captured variable in an `Fn` closure
+   --> src\database_sqlite.rs:605:32
+    |
+593 |         metadata: Option<serde_json::Value>,
+    |         --------  ------------------------- move occurs because `metadata` has type `std::option::Option<serde_json::Value>`, which does not implement the `Copy` trait
+    |         |
+    |         captured outer variable
+...
+596 |         self.execute_with_retry(|conn| {
+    |                                 ------ captured by this `Fn` closure
+...
+605 |             let metadata_str = metadata
+    |                                ^^^^^^^^
+    |                                |
+    |                                help: consider calling `.as_ref()` or `.as_mut()` to borrow the type's contents
+    |                                `metadata` is moved here
+606 |                 .map(|m| m.to_string())
+    |                  ---------------------- `metadata` moved due to this method call
+    |
+help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+   --> src\database_sqlite.rs:318:12
+    |
+318 |         F: Fn(&Connection) -> SqliteResult<R>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+note: `std::option::Option::<T>::map` takes ownership of the receiver `self`, which moves `metadata`
+   --> /rustc/f8297e351a40c1439a467bbbb6879088047f50b3\library\core\src\option.rs:1154:28
+help: you can `clone` the value and consume it, but this might not be your desired behavior
+    |
+605 |             let metadata_str = <std::option::Option<serde_json::Value> as Clone>::clone(&metadata)
+    |                                ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++        +
+help: consider cloning the value if the performance cost is acceptable
+    |
+605 |             let metadata_str = metadata.clone()
+    |                                        ++++++++
+error[E0507]: cannot move out of `resource_id`, a captured variable in an `Fn` closure
+   --> src\database_sqlite.rs:667:17
+    |
+588 |         resource_id: Option<String>,
+    |         -----------  -------------- move occurs because `resource_id` has type `std::option::Option<std::string::String>`, which does not implement the `Copy` trait
+    |         |
+    |         captured outer variable
+...
+596 |         self.execute_with_retry(|conn| {
+    |                                 ------ captured by this `Fn` closure
+...
+667 |                 resource_id,
+    |                 ^^^^^^^^^^^ `resource_id` is moved here
+    |
+help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+   --> src\database_sqlite.rs:318:12
+    |
+318 |         F: Fn(&Connection) -> SqliteResult<R>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: consider cloning the value if the performance cost is acceptable
+    |
+667 |                 resource_id: resource_id.clone(),
+    |                            +++++++++++++++++++++
+error[E0507]: cannot move out of `resource_name`, a captured variable in an `Fn` closure
+   --> src\database_sqlite.rs:668:17
+    |
+589 |         resource_name: Option<String>,
+    |         -------------  -------------- move occurs because `resource_name` has type `std::option::Option<std::string::String>`, which does not implement the `Copy` trait
+    |         |
+    |         captured outer variable
+...
+596 |         self.execute_with_retry(|conn| {
+    |                                 ------ captured by this `Fn` closure
+...
+668 |                 resource_name,
+    |                 ^^^^^^^^^^^^^ `resource_name` is moved here
+    |
+help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+   --> src\database_sqlite.rs:318:12
+    |
+318 |         F: Fn(&Connection) -> SqliteResult<R>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: consider cloning the value if the performance cost is acceptable
+    |
+668 |                 resource_name: resource_name.clone(),
+    |                              +++++++++++++++++++++++
+error[E0507]: cannot move out of `ip_address`, a captured variable in an `Fn` closure
+   --> src\database_sqlite.rs:669:17
+    |
+590 |         ip_address: Option<String>,
+    |         ----------  -------------- move occurs because `ip_address` has type `std::option::Option<std::string::String>`, which does not implement the `Copy` trait
+    |         |
+    |         captured outer variable
+...
+596 |         self.execute_with_retry(|conn| {
+    |                                 ------ captured by this `Fn` closure
+...
+669 |                 ip_address,
+    |                 ^^^^^^^^^^ `ip_address` is moved here
+    |
+help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+   --> src\database_sqlite.rs:318:12
+    |
+318 |         F: Fn(&Connection) -> SqliteResult<R>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: consider cloning the value if the performance cost is acceptable
+    |
+669 |                 ip_address: ip_address.clone(),
+    |                           ++++++++++++++++++++
+error[E0507]: cannot move out of `user_agent`, a captured variable in an `Fn` closure
+   --> src\database_sqlite.rs:670:17
+    |
+591 |         user_agent: Option<String>,
+    |         ----------  -------------- move occurs because `user_agent` has type `std::option::Option<std::string::String>`, which does not implement the `Copy` trait
+    |         |
+    |         captured outer variable
+...
+596 |         self.execute_with_retry(|conn| {
+    |                                 ------ captured by this `Fn` closure
+...
+670 |                 user_agent,
+    |                 ^^^^^^^^^^ `user_agent` is moved here
+    |
+help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+   --> src\database_sqlite.rs:318:12
+    |
+318 |         F: Fn(&Connection) -> SqliteResult<R>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: consider cloning the value if the performance cost is acceptable
+    |
+670 |                 user_agent: user_agent.clone(),
+    |                           ++++++++++++++++++++
+error[E0507]: cannot move out of `file_hash`, a captured variable in an `Fn` closure
+   --> src\database_sqlite.rs:671:17
+    |
+592 |         file_hash: Option<String>,
+    |         ---------  -------------- move occurs because `file_hash` has type `std::option::Option<std::string::String>`, which does not implement the `Copy` trait
+    |         |
+    |         captured outer variable
+...
+596 |         self.execute_with_retry(|conn| {
+    |                                 ------ captured by this `Fn` closure
+...
+671 |                 file_hash,
+    |                 ^^^^^^^^^ `file_hash` is moved here
+    |
+help: `Fn` and `FnMut` closures require captured values to be able to be consumed multiple times, but `FnOnce` closures may consume them only once
+   --> src\database_sqlite.rs:318:12
+    |
+318 |         F: Fn(&Connection) -> SqliteResult<R>,
+    |            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+help: consider cloning the value if the performance cost is acceptable
+    |
+671 |                 file_hash: file_hash.clone(),
+    |                          +++++++++++++++++++
+error[E0716]: temporary value dropped while borrowed
+   --> src\database_sqlite.rs:712:30
+    |
+712 |                 params.push(&start.to_rfc3339());
+    |                              ^^^^^^^^^^^^^^^^^^ - temporary value is freed at the end of this statement
+    |                              |
+    |                              creates a temporary value which is freed while still in use
+...
+717 |                 params.push(&end.to_rfc3339());
+    |                 ------ borrow later used here
+    |
+    = note: consider using a `let` binding to create a longer lived value
+error[E0716]: temporary value dropped while borrowed
+   --> src\database_sqlite.rs:717:30
+    |
+717 |                 params.push(&end.to_rfc3339());
+    |                              ^^^^^^^^^^^^^^^^ - temporary value is freed at the end of this statement
+    |                              |
+    |                              creates a temporary value which is freed while still in use
+...
+729 |             let sqlite_params: Vec<&dyn rusqlite::ToSql> = params.iter()
+    |                                                            ------ borrow later used here
+    |
+    = note: consider using a `let` binding to create a longer lived value
+Some errors have detailed explanations: E0382, E0432, E0433, E0507, E0599, E0716.
+For more information about an error, try `rustc --explain E0382`.
+warning: `arkive` (lib) generated 4 warnings
+error: could not compile `arkive` (lib) due to 14 previous errors; 4 warnings emitted
+failed to build app: failed to build app
+       Error failed to build app: failed to build app
+Error: Command "npm ["run","tauri","build"]" failed with exit code 1

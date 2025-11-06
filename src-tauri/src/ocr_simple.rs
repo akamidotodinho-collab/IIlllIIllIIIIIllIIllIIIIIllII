@@ -5,9 +5,6 @@ use std::path::Path;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use regex::Regex;
-use tokio::process::Command;
-use tempfile::NamedTempFile;
-use std::io::Write;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SimpleOCRResult {

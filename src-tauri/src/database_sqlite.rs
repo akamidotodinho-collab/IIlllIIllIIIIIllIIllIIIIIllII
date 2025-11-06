@@ -603,6 +603,7 @@ impl Database {
             
             // Criar string para hash (determinística)
             let metadata_str = metadata
+                .as_ref()
                 .map(|m| m.to_string())
                 .unwrap_or_else(|| "{}".to_string());
                 
@@ -638,11 +639,11 @@ impl Database {
                     username,
                     action,
                     resource_type,
-                    resource_id,
-                    resource_name,
-                    ip_address,
-                    user_agent,
-                    file_hash,
+                    resource_id.as_ref(),
+                    resource_name.as_ref(),
+                    ip_address.as_ref(),
+                    user_agent.as_ref(),
+                    file_hash.as_ref(),
                     previous_hash,
                     current_hash,
                     metadata_str,
@@ -664,11 +665,11 @@ impl Database {
                 username: username.to_string(),
                 action: action.to_string(),
                 resource_type: resource_type.to_string(),
-                resource_id,
-                resource_name,
-                ip_address,
-                user_agent,
-                file_hash,
+                resource_id: resource_id.clone(),
+                resource_name: resource_name.clone(),
+                ip_address: ip_address.clone(),
+                user_agent: user_agent.clone(),
+                file_hash: file_hash.clone(),
                 previous_hash,
                 current_hash,
                 metadata: metadata_str,
@@ -688,33 +689,37 @@ impl Database {
         end_date: Option<DateTime<Utc>>,
         limit: Option<usize>,
     ) -> SqliteResult<Vec<AuditLog>> {
+        // Converter datas para strings antes da closure
+        let start_str = start_date.map(|d| d.to_rfc3339());
+        let end_str = end_date.map(|d| d.to_rfc3339());
+        
         self.execute_with_retry(|conn| {
             let mut query = "SELECT sequence_id, id, user_id, username, action, resource_type, resource_id, resource_name, ip_address, user_agent, file_hash, previous_hash, current_hash, metadata, timestamp, is_success FROM audit_logs WHERE 1=1".to_string();
-            let mut params = Vec::new();
+            let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
             
             if let Some(uid) = user_id {
                 query.push_str(" AND user_id = ?");
-                params.push(uid);
+                params.push(Box::new(uid.to_string()));
             }
             
             if let Some(act) = action {
                 query.push_str(" AND action = ?");
-                params.push(act);
+                params.push(Box::new(act.to_string()));
             }
             
             if let Some(rt) = resource_type {
                 query.push_str(" AND resource_type = ?");
-                params.push(rt);
+                params.push(Box::new(rt.to_string()));
             }
             
-            if let Some(start) = start_date {
+            if let Some(ref start) = start_str {
                 query.push_str(" AND timestamp >= ?");
-                params.push(&start.to_rfc3339());
+                params.push(Box::new(start.clone()));
             }
             
-            if let Some(end) = end_date {
+            if let Some(ref end) = end_str {
                 query.push_str(" AND timestamp <= ?");
-                params.push(&end.to_rfc3339());
+                params.push(Box::new(end.clone()));
             }
             
             query.push_str(" ORDER BY sequence_id DESC");
@@ -725,9 +730,9 @@ impl Database {
             
             let mut stmt = conn.prepare(&query)?;
             
-            // Converter para rusqlite::types::Value
+            // Converter para referências
             let sqlite_params: Vec<&dyn rusqlite::ToSql> = params.iter()
-                .map(|p| p as &dyn rusqlite::ToSql)
+                .map(|p| p.as_ref() as &dyn rusqlite::ToSql)
                 .collect();
             
             let audit_iter = stmt.query_map(&sqlite_params[..], |row| {

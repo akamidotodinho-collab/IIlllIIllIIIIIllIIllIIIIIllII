@@ -46,12 +46,24 @@ jobs:
         key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
         
     - name: Install WebView2 Runtime
+      shell: powershell
       run: |
-        winget install --id Microsoft.EdgeWebView2Runtime --silent --accept-package-agreements --accept-source-agreements
+        try {
+          winget install --id Microsoft.EdgeWebView2Runtime --silent --accept-package-agreements --accept-source-agreements
+        } catch {
+          Write-Host "WebView2 already installed or installation skipped"
+        }
+        exit 0
         
     - name: Install Visual C++ Redistributable
+      shell: powershell
       run: |
-        winget install --id Microsoft.VCRedist.2015+.x64 --silent --accept-package-agreements --accept-source-agreements
+        try {
+          winget install --id Microsoft.VCRedist.2015+.x64 --silent --accept-package-agreements --accept-source-agreements
+        } catch {
+          Write-Host "VC++ Redistributable already installed or installation skipped"
+        }
+        exit 0
         
     - name: Install frontend dependencies
       run: npm ci

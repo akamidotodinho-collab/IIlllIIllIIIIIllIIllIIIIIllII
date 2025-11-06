@@ -38,9 +38,9 @@ zip = "0.6"
 flate2 = "1.0"
 tempfile = "3.8"
 # OCR + Document Processing
-tesseract = "0.14"
+# tesseract = "0.14"  # Comentado - pode causar erro no Windows
 image = { version = "0.24", features = ["jpeg", "png", "tiff"] }
-pdf-extract = "0.7"
+# pdf-extract = "0.7"  # Comentado - pode causar erro no Windows
 regex = "1.10"
 # Note: Removed candle-core dependencies due to system compatibility issues
 # Threading e concorrência

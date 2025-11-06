@@ -1,0 +1,74 @@
+Correção Manual:
+
+// Adicione esta linha na lista de comandos do builder
+.invoke_handler(tauri::generate_handler![
+    // ... outros comandos existentes ...
+    desktop::open_file_dialog,  // ← ADICIONE ESTA LINHA
+    desktop::save_backup_dialog,  // ← ADICIONE ESTA LINHA  
+    desktop::open_in_explorer,  // ← ADICIONE ESTA LINHA
+])
+
+🔴 ERRO 2: FUNÇÃO AppAPI.selectFiles() NÃO EXISTE
+O que vai acontecer: JavaScript error ao tentar fazer upload
+
+Arquivo: src/services/documentApi.ts (adicionar após linha 341)
+
+Correção Manual:
+
+// Adicione este método na classe AppAPI
+static async selectFiles(): Promise<string[]> {
+  if (!this.isTauriEnvironment()) {
+    throw new Error('Dialog nativo não disponível');
+  }
+  
+  try {
+    const result = await invoke<string[]>('open_file_dialog');
+    return result || [];
+  } catch (error) {
+    console.error('Erro na seleção:', error);
+    throw error;
+  }
+}
+
+🔴 ERRO 3: DEPENDÊNCIAS NATIVAS PROBLEMÁTICAS
+O que vai acontecer: Falha na compilação ou runtime no Windows
+
+Arquivo: src-tauri/Cargo.toml (linhas 41-43)
+
+Correção Manual:
+
+# REMOVA ou COMENTE estas linhas problemáticas:
+# tesseract = "0.14"  # ← REMOVA/COMENTE
+# pdf-extract = "0.7"  # ← REMOVA/COMENTE
+# Adicione versão simplificada (opcional):
+[dependencies.tesseract]
+version = "0.14"
+optional = true
+default-features = false
+
+🔴 ERRO 4: IMPORTAÇÃO DO MÓDULO DESKTOP FALTANDO
+O que vai acontecer: Erro de compilação Rust
+
+Arquivo: src-tauri/src/lib.rs (adicionar no início, após outros mod)
+
+Correção Manual:
+
+// Adicione esta linha no início do arquivo
+mod desktop;  // ← ADICIONE ESTA LINHA
+
+📋 CHECKLIST DE CORREÇÃO MANUAL:
+# No Windows, após clonar o projeto:
+1. ✏️ Editar src-tauri/src/lib.rs
+   - Adicionar: mod desktop;
+   - Adicionar comandos desktop:: no invoke_handler
+2. ✏️ Editar src/services/documentApi.ts  
+   - Adicionar método selectFiles() na classe AppAPI
+3. ✏️ Editar src-tauri/Cargo.toml
+   - Comentar/remover tesseract e pdf-extract
+4. 🔨 Compilar e testar:
+   npm install
+   npm run build
+   cd src-tauri
+   cargo build --release
+5. ✅ Se compilar sem erros, criar instalador:
+   cargo tauri build

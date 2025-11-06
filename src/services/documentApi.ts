@@ -124,7 +124,7 @@ class AuthAPI {
 // API DE DOCUMENTOS
 // ================================
 
-export class DocumentAPI {
+class DocumentAPI {
   // Obter lista de documentos
   static async getDocuments(): Promise<Document[]> {
     try {
@@ -213,7 +213,7 @@ export class DocumentAPI {
 // API DE BUSCA FTS5
 // ================================
 
-export class SearchAPI {
+class SearchAPI {
   // Buscar documentos por texto
   static async searchDocuments(
     query: string, 
@@ -350,6 +350,22 @@ class AppAPI {
       });
     } catch {
       return dateStr;
+    }
+  }
+
+  // Seleção nativa de arquivos via dialog do Tauri
+  static async selectFiles(): Promise<string[]> {
+    if (!this.isTauriEnvironment()) {
+      throw new Error('Dialog nativo não disponível - execute no app desktop');
+    }
+    
+    try {
+      const result = await invoke<string[]>('open_file_dialog');
+      console.log(`📁 ${result.length} arquivo(s) selecionado(s)`);
+      return result || [];
+    } catch (error) {
+      console.error('❌ Erro na seleção de arquivos:', error);
+      throw error;
     }
   }
 }

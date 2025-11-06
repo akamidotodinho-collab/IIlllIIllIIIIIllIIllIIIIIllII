@@ -7,6 +7,7 @@ mod database_sqlite;
 mod backup;
 mod ocr;
 mod ocr_simple;
+mod desktop;
 
 use database_sqlite::{Database, User, AuditLog, SearchResult};
 use ocr::{OCRProcessor, ExtractedMetadata, DocumentType};
@@ -956,6 +957,9 @@ pub fn run() {
             backup::list_available_backups,
             test_audit_security,
             download_document,
+            desktop::open_file_dialog,
+            desktop::save_backup_dialog,
+            desktop::open_in_explorer,
         ]);
 
     // Executar aplicação com tratamento de erro melhorado

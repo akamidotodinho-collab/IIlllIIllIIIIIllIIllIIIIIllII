@@ -9,9 +9,9 @@ mod backup;
 mod ocr_simple;
 mod desktop;
 
-use database_sqlite::{Database, User, AuditLog, SearchResult};
+use database_sqlite::{Database, User};
 // use ocr::{OCRProcessor, ExtractedMetadata, DocumentType};  // Desabilitado
-use ocr_simple::{SimpleOCRProcessor, SimpleOCRResult, create_simple_ocr_processor};
+use ocr_simple::{SimpleOCRResult, create_simple_ocr_processor};
 use std::path::PathBuf;
 
 // Estado da aplicação
@@ -752,9 +752,13 @@ async fn search_documents(
         log::info!("🔍 Busca '{}' concluída em {}ms - {} resultados", 
                   query, search_time, response_results.len());
         
+                let total_found = response_results.len();
+        log::info!("🔍 Busca '{}' concluída em {}ms - {} resultados", 
+                  query, search_time, total_found);
+        
         Ok(SearchResponse {
             results: response_results,
-            total_found: response_results.len(),
+            total_found,
             search_time_ms: search_time,
             indexed_docs,
             total_docs,
@@ -783,6 +787,7 @@ async fn index_document_for_search(
         ).map_err(|e| format!("Erro ao indexar documento: {:?}", e))?;
         
         // Log da indexação
+                let doc_id_clone = document_id.clone();
         let _ = log_audit_event(
             &state,
             &user.id,
@@ -800,7 +805,7 @@ async fn index_document_for_search(
             true,
         ).await;
         
-        log::info!("📝 Documento {} indexado com sucesso", document_id);
+                log::info!("📝 Documento {} indexado com sucesso", doc_id_clone);
         Ok(true)
     } else {
         Err("Usuário não autenticado".to_string())
@@ -925,7 +930,7 @@ pub fn run() {
             log::info!("🔧 Configurando aplicação...");
             
             // Criar diretório de logs para Windows
-            if let Some(app_dir) = app.path_resolver().app_data_dir() {
+            if let Ok(app_dir) = app.path().app_data_dir() {    
                 let log_dir = app_dir.join("logs");
                 if let Err(e) = std::fs::create_dir_all(&log_dir) {
                     log::warn!("Não foi possível criar diretório de logs: {:?}", e);
@@ -954,7 +959,6 @@ pub fn run() {
             get_search_statistics,
             backup::verify_backup_file,
             backup::list_available_backups,
-            test_audit_security,
             download_document,
             desktop::open_file_dialog,
             desktop::save_backup_dialog,

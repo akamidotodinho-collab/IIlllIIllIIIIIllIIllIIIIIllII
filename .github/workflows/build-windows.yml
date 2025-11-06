@@ -100,13 +100,13 @@ jobs:
         includeDebug: false
         
     - name: Upload MSI Installer
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: arkive-windows-msi
         path: src-tauri/target/release/bundle/msi/*.msi
         
     - name: Upload NSIS Installer  
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: arkive-windows-nsis
         path: src-tauri/target/release/bundle/nsis/*.exe
@@ -142,7 +142,7 @@ jobs:
         Write-Host $report
         
     - name: Upload Build Report
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: build-report
         path: build-report.md

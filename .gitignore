@@ -46,6 +46,12 @@ backup/
 # Cache
 .cache/
 .parcel-cache/
+.local/
+
+# Cargo/Rust cache
+.cargo/
+**/.cargo/
+target/
 
 # Runtime
 *.pid

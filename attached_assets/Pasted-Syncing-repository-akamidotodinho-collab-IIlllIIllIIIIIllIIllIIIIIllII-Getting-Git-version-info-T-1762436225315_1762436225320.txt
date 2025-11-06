@@ -1,0 +1,116 @@
+Syncing repository: akamidotodinho-collab/IIlllIIllIIIIIllIIllIIIIIllII
+Getting Git version info
+Temporarily overriding HOME='D:\a\_temp\773ffb6b-9522-477b-bc08-0f25746fd68e' before making global git config changes
+Adding repository directory to the temporary git global config as a safe directory
+"C:\Program Files\Git\bin\git.exe" config --global --add safe.directory D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII
+Deleting the contents of 'D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII'
+Initializing the repository
+Disabling automatic garbage collection
+Setting up auth
+Fetching the repository
+Determining the checkout info
+"C:\Program Files\Git\bin\git.exe" sparse-checkout disable
+"C:\Program Files\Git\bin\git.exe" config --local --unset-all extensions.worktreeConfig
+Checking out the ref
+  "C:\Program Files\Git\bin\git.exe" checkout --progress --force -B main refs/remotes/origin/main
+  Updating files:  13% (2813/20217)
+  Updating files:  14% (2831/20217)
+  Updating files:  15% (3033/20217)
+  Updating files:  16% (3235/20217)
+  Updating files:  17% (3437/20217)
+  Updating files:  18% (3640/20217)
+  Updating files:  19% (3842/20217)
+  Updating files:  20% (4044/20217)
+  Updating files:  21% (4246/20217)
+  Updating files:  22% (4448/20217)
+  Updating files:  23% (4650/20217)
+  Updating files:  24% (4853/20217)
+  Updating files:  25% (5055/20217)
+  Updating files:  26% (5257/20217)
+  Updating files:  27% (5459/20217)
+  Updating files:  28% (5661/20217)
+  Updating files:  29% (5863/20217)
+  Updating files:  30% (6066/20217)
+  Updating files:  30% (6091/20217)
+  Updating files:  31% (6268/20217)
+  Updating files:  32% (6470/20217)
+  Updating files:  33% (6672/20217)
+  Updating files:  34% (6874/20217)
+  Updating files:  35% (7076/20217)
+  Updating files:  36% (7279/20217)
+  Updating files:  37% (7481/20217)
+  Updating files:  38% (7683/20217)
+  Updating files:  39% (7885/20217)
+  Updating files:  40% (8087/20217)
+  Updating files:  41% (8289/20217)
+  Updating files:  42% (8492/20217)
+  Updating files:  43% (8694/20217)
+  Updating files:  43% (8879/20217)
+  Updating files:  44% (8896/20217)
+  Updating files:  45% (9098/20217)
+  Updating files:  46% (9300/20217)
+  Updating files:  47% (9502/20217)
+  Updating files:  48% (9705/20217)
+  Updating files:  49% (9907/20217)
+  Updating files:  50% (10109/20217)
+  Updating files:  51% (10311/20217)
+  Updating files:  52% (10513/20217)
+  Updating files:  53% (10716/20217)
+  Updating files:  54% (10918/20217)
+  Updating files:  55% (11120/20217)
+  Updating files:  56% (11322/20217)
+  Updating files:  57% (11524/20217)
+  Updating files:  58% (11726/20217)
+  Updating files:  59% (11929/20217)
+  Updating files:  60% (12131/20217)
+  Updating files:  61% (12333/20217)
+  Updating files:  61% (12484/20217)
+  Updating files:  62% (12535/20217)
+  Updating files:  63% (12737/20217)
+  Error: error: unable to create file .local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/schemars-0.9.0/tests/integration/snapshots/schemars/tests/integration/enums_flattened.rs~enums_flattened_deny_unknown_fields.json: Filename too long
+  Error: error: unable to create file .local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/schemars-0.9.0/tests/integration/snapshots/schemars/tests/integration/enums_flattened.rs~enums_flattened_deny_unknown_fields_draft07.json: Filename too long
+  Updating files:  64% (12939/20217)
+  Updating files:  65% (13142/20217)
+  Error: error: unable to create file .local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/schemars-1.0.4/tests/integration/snapshots/schemars/tests/integration/enums_flattened.rs~enums_flattened_deny_unknown_fields.json: Filename too long
+  Error: error: unable to create file .local/share/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/schemars-1.0.4/tests/integration/snapshots/schemars/tests/integration/enums_flattened.rs~enums_flattened_deny_unknown_fields_draft07.json: Filename too long
+  Updating files:  66% (13344/20217)
+  Updating files:  67% (13546/20217)
+  Updating files:  68% (13748/20217)
+  Updating files:  69% (13950/20217)
+  Updating files:  70% (14152/20217)
+  Updating files:  71% (14355/20217)
+  Updating files:  72% (14557/20217)
+  Updating files:  73% (14759/20217)
+  Updating files:  74% (14961/20217)
+  Updating files:  75% (15163/20217)
+  Updating files:  76% (15365/20217)
+  Updating files:  77% (15568/20217)
+  Updating files:  77% (15700/20217)
+  Updating files:  78% (15770/20217)
+  Updating files:  79% (15972/20217)
+  Updating files:  80% (16174/20217)
+  Updating files:  81% (16376/20217)
+  Updating files:  82% (16578/20217)
+  Updating files:  83% (16781/20217)
+  Updating files:  84% (16983/20217)
+  Updating files:  85% (17185/20217)
+  Updating files:  86% (17387/20217)
+  Updating files:  87% (17589/20217)
+  Updating files:  88% (17791/20217)
+  Updating files:  89% (17994/20217)
+  Updating files:  90% (18196/20217)
+  Updating files:  91% (18398/20217)
+  Updating files:  92% (18600/20217)
+  Updating files:  93% (18802/20217)
+  Updating files:  94% (19004/20217)
+  Updating files:  95% (19207/20217)
+  Updating files:  95% (19367/20217)
+  Updating files:  96% (19409/20217)
+  Updating files:  97% (19611/20217)
+  Updating files:  98% (19813/20217)
+  Updating files:  99% (20015/20217)
+  Updating files: 100% (20217/20217)
+  Updating files: 100% (20217/20217), done.
+  branch 'main' set up to track 'origin/main'.
+  Switched to a new branch 'main'
+  Error: The process 'C:\Program Files\Git\bin\git.exe' failed with exit code 1

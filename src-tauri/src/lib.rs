@@ -5,12 +5,12 @@ use tokio::sync::Mutex;
 
 mod database_sqlite;
 mod backup;
-mod ocr;
+// mod ocr;  // Desabilitado - depende de tesseract
 mod ocr_simple;
 mod desktop;
 
 use database_sqlite::{Database, User, AuditLog, SearchResult};
-use ocr::{OCRProcessor, ExtractedMetadata, DocumentType};
+// use ocr::{OCRProcessor, ExtractedMetadata, DocumentType};  // Desabilitado
 use ocr_simple::{SimpleOCRProcessor, SimpleOCRResult, create_simple_ocr_processor};
 use std::path::PathBuf;
 
@@ -18,7 +18,7 @@ use std::path::PathBuf;
 pub struct AppState {
     pub db: Arc<Database>,
     pub authenticated_user: Arc<Mutex<Option<User>>>,
-    pub ocr_processor: Arc<Mutex<Option<OCRProcessor>>>,
+    // pub ocr_processor: Arc<Mutex<Option<OCRProcessor>>>,  // Desabilitado
 }
 
 impl AppState {
@@ -47,14 +47,12 @@ impl AppState {
         
         let authenticated_user = Arc::new(Mutex::new(None));
         
-        // Inicializar OCR processor (lazy loading)
-        let ocr_processor = Arc::new(Mutex::new(None));
+        // OCR processor desabilitado - usa SimpleOCR apenas
         log::info!("✅ AppState inicializado com sucesso");
         
         Ok(AppState {
             db,
             authenticated_user,
-            ocr_processor,
         })
     }
 }
@@ -511,7 +509,6 @@ async fn process_document_simple_ocr(
             Some(file_name.to_string()),
             Some(file_name.to_string()),
             None,
-            None,
             Some(serde_json::json!({
                 "file_path": file_path,
                 "document_type": result.document_type,
@@ -528,7 +525,8 @@ async fn process_document_simple_ocr(
     }
 }
 
-// Processar documento com OCR + IA (com fallback para sistema simplificado)
+// Processar documento com OCR + IA - DESABILITADO (requer tesseract)
+/*
 #[tauri::command]
 async fn process_document_ocr(
     file_path: String,
@@ -618,6 +616,7 @@ async fn process_document_ocr(
         Err("Usuário não autenticado".to_string())
     }
 }
+*/  // Fim do bloco comentado process_document_ocr
 
 // Obter tipos de documento suportados
 #[tauri::command]
@@ -947,7 +946,7 @@ pub fn run() {
             get_recent_activities,
             get_audit_logs,
             verify_audit_chain,
-            process_document_ocr,
+            // process_document_ocr,  // Desabilitado - requer tesseract
             process_document_simple_ocr,
             get_supported_document_types,
             search_documents,

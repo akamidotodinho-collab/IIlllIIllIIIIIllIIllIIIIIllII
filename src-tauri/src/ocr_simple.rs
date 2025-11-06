@@ -124,22 +124,9 @@ impl SimpleOCRProcessor {
         
         log::info!("📄 Processando PDF: {:?}", pdf_path);
 
-        // Tentar extrair texto do PDF
-        let text = match pdf_extract::extract_text(pdf_path) {
-            Ok(text) => text.trim().to_string(),
-            Err(e) => {
-                log::warn!("⚠️ Erro ao extrair texto do PDF: {:?}", e);
-                return Ok(SimpleOCRResult {
-                    extracted_text: String::new(),
-                    document_type: "unknown".to_string(),
-                    extracted_fields: HashMap::new(),
-                    confidence_score: 0.0,
-                    processing_method: "pdf_extraction_failed".to_string(),
-                    processing_time_ms: start_time.elapsed().as_millis(),
-                    error_message: Some(format!("PDF text extraction failed: {}", e)),
-                });
-            }
-        };
+        // PDF extraction desabilitado - biblioteca não disponível no Windows
+        log::warn!("⚠️ Extração de PDF desabilitada - converta PDF para imagem primeiro");
+        let text = String::new();
 
         if text.is_empty() {
             return Ok(SimpleOCRResult {

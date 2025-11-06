@@ -1,0 +1,31 @@
+O Windows PowerShell
+Copyright (C) Microsoft Corporation. Todos os direitos reservados.
+
+Instale o PowerShell mais recente para obter novos recursos e aprimoramentos! https://aka.ms/PSWindows
+
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> # Remover cache do Cargo que está no Git
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> git rm -r --cached .local
+
+fatal: pathspec '.local' did not match any files
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII>
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> # Atualizar gitignore e workflow
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> git add .gitignore
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> git add .github/workflows/build-windows.yml
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII>
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> # Fazer commit
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> git commit -m "Fix GitHub Actions: remove cargo cache and update workflow"
+[main 2e8ebe5] Fix GitHub Actions: remove cargo cache and update workflow
+ 1 file changed, 136 insertions(+)
+ create mode 100644 IIlllIIllIIIIIllIIllIIIIIllII/.github/workflows/build-windows.yml
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII>
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> # Enviar para GitHub
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII> git push
+fatal: The current branch main has no upstream branch.
+To push the current branch and set the remote as upstream, use
+
+    git push --set-upstream origin main
+
+To have this happen automatically for branches without a tracking
+upstream, see 'push.autoSetupRemote' in 'git help config'.
+
+PS C:\Users\Asus\OneDrive\Desktop\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII>

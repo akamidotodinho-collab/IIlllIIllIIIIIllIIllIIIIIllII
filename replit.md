@@ -8,6 +8,22 @@ ARKIVE é um **sistema desktop nativo** de gerenciamento de documentos desenvolv
 
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (Nov 6, 2025)
+
+### Correções Críticas para Build Windows
+1. ✅ Adicionado módulo `desktop` ao lib.rs
+2. ✅ Registrados comandos desktop (open_file_dialog, save_backup_dialog, open_in_explorer)
+3. ✅ Implementada função AppAPI.selectFiles() para upload nativo
+4. ✅ Desabilitadas dependências problemáticas (tesseract, pdf-extract)
+5. ✅ Removido OCR avançado que causava crash na inicialização
+6. ✅ Mantido apenas SimpleOCR sem dependências externas
+
+### Status do Projeto
+- **Build Frontend:** ✅ Funcionando (2.32s)
+- **Erros LSP:** 2 (apenas ícones, não afeta funcionalidade)
+- **Pronto para Build Windows:** ✅ Sim
+- **Funcionalidades:** Login, upload, busca, auditoria, backup (OCR limitado)
+
 ## System Architecture
 
 ### Frontend Architecture

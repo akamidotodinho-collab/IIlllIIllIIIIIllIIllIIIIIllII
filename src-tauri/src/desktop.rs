@@ -1,5 +1,5 @@
 use tauri::{command, AppHandle};
-use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+use tauri_plugin_dialog::DialogExt;
 use std::path::PathBuf;
 
 // Abrir diálogo de seleção de arquivos nativos
@@ -17,7 +17,7 @@ pub async fn open_file_dialog(app: AppHandle) -> Result<Vec<String>, String> {
         Some(files) => {
             let paths: Vec<String> = files
                 .into_iter()
-                .filter_map(|p| p.path.to_str().map(|s| s.to_string()))
+                .filter_map(|p| p.as_path().and_then(|path| path.to_str()).map(|s| s.to_string()))
                 .collect();
             Ok(paths)
         },
@@ -37,7 +37,7 @@ pub async fn save_backup_dialog(app: AppHandle) -> Result<Option<String>, String
         .set_title("Salvar backup")
         .blocking_save_file();
     
-    Ok(path.and_then(|p| p.path.to_str().map(|s| s.to_string())))
+    Ok(path.and_then(|p| p.as_path().and_then(|path| path.to_str()).map(|s| s.to_string())))
 }
 
 // Abrir pasta no explorador

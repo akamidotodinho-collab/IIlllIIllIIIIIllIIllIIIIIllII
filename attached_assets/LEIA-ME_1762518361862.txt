@@ -1,0 +1,32 @@
+﻿ARKIVE Desktop - Instalador Profissional
+==========================================
+
+OPCOES DE INSTALACAO:
+
+OPCAO 1: Instalador NSIS (Recomendado)
+- Execute: ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe
+- Instalacao automatica com todas as dependencias
+
+OPCAO 2: Instalador MSI (Windows corporativo)
+- Execute: ARKIVE - Guardou, Achou!_1.0.0_x64.msi
+- Para ambientes corporativos com GPO
+
+REQUISITOS MINIMOS:
+- Windows 10 versao 1903 ou superior
+- WebView2 Runtime (instalado automaticamente)
+- 100 MB de espaco livre
+
+SEGURANCA:
+- Executaveis: Nao assinados
+- Auditoria de seguranca aprovada
+- Codigo-fonte verificavel em GitHub
+- Dados locais criptografados
+- Sem dependencias externas em runtime
+
+DADOS LOCAIS:
+- SQLite com bcrypt
+- Dados isolados por usuario
+- Backup automatico local
+
+Build: #82
+Versao: 1.0.0

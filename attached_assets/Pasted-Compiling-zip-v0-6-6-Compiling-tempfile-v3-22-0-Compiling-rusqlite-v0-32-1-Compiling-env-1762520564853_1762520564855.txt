@@ -1,0 +1,148 @@
+Compiling zip v0.6.6
+   Compiling tempfile v3.22.0
+   Compiling rusqlite v0.32.1
+   Compiling env_logger v0.11.8
+   Compiling bcrypt v0.15.1
+   Compiling image v0.24.9
+   Compiling dirs v4.0.0
+warning: struct `DocumentContent` is never constructed
+  --> src\database_sqlite.rs:48:12
+   |
+48 | pub struct DocumentContent {
+   |            ^^^^^^^^^^^^^^^
+   |
+   = note: `#[warn(dead_code)]` (part of `#[warn(unused)]`) on by default
+warning: field `db_path` is never read
+  --> src\database_sqlite.rs:90:5
+   |
+88 | pub struct Database {
+   |            -------- field in this struct
+89 |     conn: Arc<Mutex<Connection>>,
+90 |     db_path: PathBuf,
+   |     ^^^^^^^
+warning: field `0` is never read
+  --> src\backup.rs:20:13
+   |
+20 |     IoError(io::Error),
+   |     ------- ^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `BackupError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+20 -     IoError(io::Error),
+20 +     IoError(()),
+   |
+warning: field `0` is never read
+  --> src\backup.rs:21:14
+   |
+21 |     ZipError(ZipError),
+   |     -------- ^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `BackupError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+21 -     ZipError(ZipError),
+21 +     ZipError(()),
+   |
+warning: field `0` is never read
+  --> src\backup.rs:22:19
+   |
+22 |     DatabaseError(rusqlite::Error),
+   |     ------------- ^^^^^^^^^^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `BackupError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+22 -     DatabaseError(rusqlite::Error),
+22 +     DatabaseError(()),
+   |
+warning: field `0` is never read
+  --> src\backup.rs:23:21
+   |
+23 |     ValidationError(String),
+   |     --------------- ^^^^^^
+   |     |
+   |     field in this variant
+   |
+   = note: `BackupError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+help: consider changing the field to be of unit type to suppress this warning while preserving the field numbering, or remove the field
+   |
+23 -     ValidationError(String),
+23 +     ValidationError(()),
+   |
+warning: method `cleanup_old_backups` is never used
+   --> src\backup.rs:165:12
+    |
+ 48 | impl BackupManager {
+    | ------------------ method in this implementation
+...
+165 |     pub fn cleanup_old_backups(&self, keep_count: usize) -> Result<usize, BackupError> {
+    |            ^^^^^^^^^^^^^^^^^^^
+warning: variants `ProcessingError` and `TesseractNotAvailable` are never constructed
+  --> src\ocr_simple.rs:23:5
+   |
+21 | pub enum SimpleOCRError {
+   |          -------------- variants in this enum
+22 |     IOError(std::io::Error),
+23 |     ProcessingError(String),
+   |     ^^^^^^^^^^^^^^^
+24 |     TesseractNotAvailable,
+   |     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `SimpleOCRError` has a derived impl for the trait `Debug`, but this is intentionally ignored during dead code analysis
+warning: function `show_notification` is never used
+  --> src\desktop.rs:77:14
+   |
+77 | pub async fn show_notification(title: String, message: String) -> Result<(), String> {
+   |              ^^^^^^^^^^^^^^^^^
+warning: `arkive` (lib) generated 9 warnings
+    Finished `release` profile [optimized] target(s) in 6m 46s
+       Built application at: D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\arkive.exe
+        Info Patching binary "D:\\a\\IIlllIIllIIIIIllIIllIIIIIllII\\IIlllIIllIIIIIllIIllIIIIIllII\\src-tauri\\target\\release\\arkive.exe" for type msi
+        Info Verifying wix package
+ Downloading https://github.com/wixtoolset/wix3/releases/download/wix3141rtm/wix314-binaries.zip
+        Info validating hash
+        Info extracting WIX
+        Info Target: x64
+     Running candle for "main.wxs"
+     Running light to produce D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_pt-BR.msi
+     Running light to produce D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi
+        Info Patching binary "D:\\a\\IIlllIIllIIIIIllIIllIIIIIllII\\IIlllIIllIIIIIllIIllIIIIIllII\\src-tauri\\target\\release\\arkive.exe" for type nsis
+        Info Verifying NSIS package
+ Downloading https://github.com/tauri-apps/binary-releases/releases/download/nsis-3/nsis-3.zip
+        Info validating hash
+        Info extracting NSIS
+ Downloading https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.1/nsis_tauri_utils.dll
+        Info validating hash
+        Info Target: x64
+     Running makensis to produce D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\nsis\ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe
+    Finished 2 bundles at:
+        D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_pt-BR.msi
+        D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi
+        D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\nsis\ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe
+Looking for artifacts in:
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_pt-BR.msi
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_pt-BR.msi.sig
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_pt-BR.msi.zip
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_pt-BR.msi.zip.sig
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi.sig
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi.zip
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi.zip.sig
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\nsis\ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\nsis\ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe.sig
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\nsis\ARKIVE - Guardou, Achou!_1.0.0_x64-setup.nsis.zip
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\nsis\ARKIVE - Guardou, Achou!_1.0.0_x64-setup.nsis.zip.sig
+Found artifacts:
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_pt-BR.msi
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\msi\ARKIVE - Guardou, Achou!_1.0.0_x64_en-US.msi
+D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri\target\release\bundle\nsis\ARKIVE - Guardou, Achou!_1.0.0_x64-setup.exe
+Looking for a draft release with tag main...
+Couldn't find release with tag main. Creating one.
+Error: Resource not accessible by integration - https://docs.github.com/rest/releases/releases#create-a-release

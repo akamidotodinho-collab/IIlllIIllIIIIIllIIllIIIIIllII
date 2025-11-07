@@ -19,7 +19,7 @@
   ],
   "author": "akamidotodinho-collab",
   "license": "MIT",
-  "dependencies": {
+    "dependencies": {
     "@tauri-apps/api": "^2.7.0",
     "autoprefixer": "^10.4.21",
     "lucide-react": "^0.543.0",

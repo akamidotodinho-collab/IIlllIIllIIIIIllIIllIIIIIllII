@@ -83,25 +83,31 @@ export default function SimpleApp() {
   // Login do usuário
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔵 handleLogin chamado');
     
     if (!loginForm.username || !loginForm.password) {
-      AppAPI.showError('Preencha usuário e senha');
+      console.log('❌ Campos vazios');
+      alert('Preencha usuário e senha');
       return;
     }
     
+    console.log('🔵 Tentando login com:', loginForm.username);
+    
     try {
       setIsLoading(true);
+      console.log('🔵 Chamando AuthAPI.login...');
       const loggedUser = await AuthAPI.login(loginForm.username, loginForm.password);
+      console.log('✅ Login bem-sucedido:', loggedUser);
       setUser(loggedUser);
       setIsAuthenticated(true);
       setShowLogin(false);
       setLoginForm({ username: '', password: '' });
       
-      AppAPI.showSuccess(`Bem-vindo, ${loggedUser.username}!`);
+      alert(`Bem-vindo, ${loggedUser.username}!`);
       await loadAppData();
     } catch (error) {
-      AppAPI.showError('Credenciais inválidas');
-      console.error('Erro no login:', error);
+      console.error('❌ Erro no login:', error);
+      alert(`Erro: ${String(error)}`);
     } finally {
       setIsLoading(false);
     }

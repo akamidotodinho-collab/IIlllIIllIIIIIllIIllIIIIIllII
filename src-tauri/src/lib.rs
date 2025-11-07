@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{State, Manager};
 use tokio::sync::Mutex;
 
 mod database_sqlite;

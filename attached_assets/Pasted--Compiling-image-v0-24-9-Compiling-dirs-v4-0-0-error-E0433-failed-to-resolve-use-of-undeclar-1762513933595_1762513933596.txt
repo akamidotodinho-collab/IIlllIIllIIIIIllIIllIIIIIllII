@@ -1,0 +1,71 @@
+ Compiling image v0.24.9
+   Compiling dirs v4.0.0
+error[E0433]: failed to resolve: use of undeclared type `Command`
+  --> src\ocr_simple.rs:74:22
+   |
+74 |         let output = Command::new("tesseract")
+   |                      ^^^^^^^ use of undeclared type `Command`
+   |
+help: consider importing one of these structs
+   |
+ 4 + use std::process::Command;
+   |
+ 4 + use tauri_plugin_shell::process::Command;
+   |
+ 4 + use tokio::process::Command;
+   |
+
+error[E0433]: failed to resolve: use of undeclared type `Command`
+   --> src\ocr_simple.rs:160:15
+    |
+160 |         match Command::new("tesseract").arg("--version").output().await {
+    |               ^^^^^^^ use of undeclared type `Command`
+    |
+help: consider importing one of these structs
+    |
+  4 + use std::process::Command;
+    |
+  4 + use tauri_plugin_shell::process::Command;
+    |
+  4 + use tokio::process::Command;
+    |
+
+warning: unused import: `MessageDialogKind`
+ --> src\desktop.rs:2:38
+  |
+2 | use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
+  |                                      ^^^^^^^^^^^^^^^^^
+  |
+  = note: `#[warn(unused_imports)]` (part of `#[warn(unused)]`) on by default
+
+error[E0609]: no field `path` on type `FilePath`
+  --> src\desktop.rs:20:35
+   |
+20 |                 .filter_map(|p| p.path.to_str().map(|s| s.to_string()))
+   |                                   ^^^^ unknown field
+
+error[E0609]: no field `path` on type `FilePath`
+  --> src\desktop.rs:40:28
+   |
+40 |     Ok(path.and_then(|p| p.path.to_str().map(|s| s.to_string())))
+   |                            ^^^^ unknown field
+
+error[E0599]: no method named `path` found for mutable reference `&mut tauri::App` in the current scope
+   --> src\lib.rs:933:38
+    |
+933 |             if let Ok(app_dir) = app.path().app_data_dir() {    
+    |                                      ^^^^ method not found in `&mut tauri::App`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Manager` which provides `path` is implemented but not in scope; perhaps you want to import it
+    |
+  1 + use tauri::Manager;
+    |
+
+Some errors have detailed explanations: E0433, E0599, E0609.
+For more information about an error, try `rustc --explain E0433`.
+warning: `arkive` (lib) generated 1 warning
+error: could not compile `arkive` (lib) due to 5 previous errors; 1 warning emitted
+failed to build app: failed to build app
+       Error failed to build app: failed to build app
+Error: Command "npm ["run","tauri","build"]" failed with exit code 1

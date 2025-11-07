@@ -1,7 +1,9 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::{State, Manager};
+use tauri::State;
 use tokio::sync::Mutex;
+use uuid::Uuid;
+use chrono::Utc;
 
 mod database_sqlite;
 mod backup;
@@ -136,15 +138,16 @@ pub struct AuditChainStatus {
 // Comandos Tauri básicos (implementação mínima)
 #[tauri::command]
 async fn login(
-    request: LoginRequest,
+    username: String,
+    password: String,
     state: State<'_, AppState>,
-) -> Result<LoginResponse, String> {
-    // Implementação simplificada para compatibilidade
-    let user_result = state.db.get_user_by_username(&request.username);
+) -> Result<String, String> {
+    log::info!("🔐 Tentativa de login: {}", username);
+    let user_result = state.db.get_user_by_username(&username);
     
     match user_result {
         Ok(Some(user)) => {
-            if bcrypt::verify(&request.password, &user.password_hash).unwrap_or(false) {
+            if bcrypt::verify(&password, &user.password_hash).unwrap_or(false) {
                 let mut authenticated_user = state.authenticated_user.lock().await;
                 *authenticated_user = Some(user.clone());
                 
@@ -162,12 +165,16 @@ async fn login(
                     true,
                 ).await;
                 
-                Ok(LoginResponse {
-                    success: true,
-                    user: Some(user.username),
-                    error: None,
-                })
+                log::info!("✅ Login bem-sucedido: {}", username);
+                // Retornar User completo como JSON
+                let user_json = serde_json::json!({
+                    "id": user.id,
+                    "username": user.username,
+                    "created_at": user.created_at.to_rfc3339()
+                });
+                Ok(user_json.to_string())
             } else {
+                log::warn!("❌ Senha incorreta: {}", username);
                 // REGISTRAR LOGIN FALHA NA TRILHA DE AUDITORIA
                 let _ = log_audit_event(
                     &state,
@@ -182,18 +189,15 @@ async fn login(
                     false,
                 ).await;
                 
-                Ok(LoginResponse {
-                    success: false,
-                    user: None,
-                    error: Some("Senha incorreta".to_string()),
-                })
+                Err("Senha incorreta".to_string())
             }
         }
         Ok(None) => {
+            log::warn!("❌ Usuário não encontrado: {}", username);
             // REGISTRAR TENTATIVA DE LOGIN COM USUÁRIO INEXISTENTE NA TRILHA DE AUDITORIA
             let _ = state.db.create_audit_log(
                 "UNKNOWN_USER",
-                &request.username,
+                &username,
                 "LOGIN_FAILED",
                 "SYSTEM",
                 None,
@@ -204,84 +208,83 @@ async fn login(
                 Some(serde_json::json!({
                     "ip_address": "local", 
                     "reason": "user_not_found",
-                    "attempted_username": request.username
+                    "attempted_username": username
                 })),
                 false,
             );
             
-            Ok(LoginResponse {
-                success: false,
-                user: None,
-                error: Some("Usuário não encontrado".to_string()),
-            })
+            Err("Usuário não encontrado".to_string())
         }
         Err(e) => {
-            Ok(LoginResponse {
-                success: false,
-                user: None,
-                error: Some(format!("Erro de banco: {:?}", e)),
-            })
+            log::error!("❌ Erro de banco: {:?}", e);
+            Err(format!("Erro de banco: {:?}", e))
         }
     }
 }
 
 #[tauri::command]
 async fn register(
-    request: RegisterRequest,
+    username: String,
+    password: String,
     state: State<'_, AppState>,
-) -> Result<LoginResponse, String> {
-    if request.password != request.confirm_password {
-        return Ok(LoginResponse {
-            success: false,
-            user: None,
-            error: Some("Senhas não conferem".to_string()),
-        });
-    }
-
-    if request.password.len() < 4 {
-        return Ok(LoginResponse {
-            success: false,
-            user: None,
-            error: Some("Senha deve ter pelo menos 4 caracteres".to_string()),
-        });
+) -> Result<String, String> {
+    log::info!("📝 Tentativa de registro: {}", username);
+    
+    if password.len() < 6 {
+        log::warn!("❌ Senha muito curta");
+        return Err("Senha deve ter pelo menos 6 caracteres".to_string());
     }
 
     // Criar usuário
-    let password_hash = match bcrypt::hash(&request.password, 12) {
+    let password_hash = match bcrypt::hash(&password, 12) {
         Ok(hash) => hash,
-        Err(e) => return Ok(LoginResponse {
-            success: false,
-            user: None,
-            error: Some(format!("Erro ao criptografar senha: {}", e)),
-        }),
+        Err(e) => {
+            log::error!("❌ Erro ao gerar hash: {:?}", e);
+            return Err(format!("Erro ao criptografar senha: {:?}", e));
+        }
     };
 
-    let new_user = User {
-        id: uuid::Uuid::new_v4().to_string(),
-        username: request.username.clone(),
-        email: format!("{}@arkive.local", request.username), // Email padrão
+    // Criar objeto User completo
+    let user = User {
+        id: Uuid::new_v4().to_string(),
+        username: username.clone(),
+        email: format!("{}@local", username),
         password_hash,
-        created_at: chrono::Utc::now(),
+        created_at: Utc::now(),
         last_login: None,
     };
 
-    match state.db.create_user(&new_user) {
+    match state.db.create_user(&user) {
         Ok(_) => {
             let mut authenticated_user = state.authenticated_user.lock().await;
-            *authenticated_user = Some(new_user.clone());
+            *authenticated_user = Some(user.clone());
             
-            Ok(LoginResponse {
-                success: true,
-                user: Some(new_user.username),
-                error: None,
-            })
+            // REGISTRAR REGISTRO NA TRILHA DE AUDITORIA
+            let _ = log_audit_event(
+                &state,
+                &user.id,
+                &user.username,
+                "REGISTER",
+                "SYSTEM",
+                None,
+                None,
+                None,
+                Some(serde_json::json!({"ip_address": "local"})),
+                true,
+            ).await;
+            
+            log::info!("✅ Usuário registrado: {}", username);
+            // Retornar User completo como JSON
+            let user_json = serde_json::json!({
+                "id": user.id,
+                "username": user.username,
+                "created_at": user.created_at.to_rfc3339()
+            });
+            Ok(user_json.to_string())
         }
         Err(e) => {
-            Ok(LoginResponse {
-                success: false,
-                user: None,
-                error: Some(format!("Erro ao criar usuário: {:?}", e)),
-            })
+            log::error!("❌ Erro ao criar usuário: {:?}", e);
+            Err(format!("Erro ao criar usuário: {:?}. Usuário pode já existir.", e))
         }
     }
 }
@@ -749,10 +752,7 @@ async fn search_documents(
             }
         }).collect();
         
-        log::info!("🔍 Busca '{}' concluída em {}ms - {} resultados", 
-                  query, search_time, response_results.len());
-        
-                let total_found = response_results.len();
+        let total_found = response_results.len();
         log::info!("🔍 Busca '{}' concluída em {}ms - {} resultados", 
                   query, search_time, total_found);
         
@@ -787,7 +787,7 @@ async fn index_document_for_search(
         ).map_err(|e| format!("Erro ao indexar documento: {:?}", e))?;
         
         // Log da indexação
-                let doc_id_clone = document_id.clone();
+        let doc_id_clone = document_id.clone();
         let _ = log_audit_event(
             &state,
             &user.id,
@@ -805,7 +805,7 @@ async fn index_document_for_search(
             true,
         ).await;
         
-                log::info!("📝 Documento {} indexado com sucesso", doc_id_clone);
+        log::info!("📝 Documento {} indexado com sucesso", doc_id_clone);
         Ok(true)
     } else {
         Err("Usuário não autenticado".to_string())
@@ -930,7 +930,7 @@ pub fn run() {
             log::info!("🔧 Configurando aplicação...");
             
             // Criar diretório de logs para Windows
-            if let Ok(app_dir) = app.path().app_data_dir() {    
+            if let Ok(app_dir) = app.path().app_data_dir() {
                 let log_dir = app_dir.join("logs");
                 if let Err(e) = std::fs::create_dir_all(&log_dir) {
                     log::warn!("Não foi possível criar diretório de logs: {:?}", e);

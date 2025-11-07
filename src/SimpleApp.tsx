@@ -107,6 +107,36 @@ export default function SimpleApp() {
     }
   };
 
+  // Registro de novo usuário
+  const handleRegister = async () => {
+    if (!loginForm.username || !loginForm.password) {
+      AppAPI.showError('Preencha usuário e senha para criar conta');
+      return;
+    }
+    
+    if (loginForm.password.length < 6) {
+      AppAPI.showError('Senha deve ter no mínimo 6 caracteres');
+      return;
+    }
+    
+    try {
+      setIsLoading(true);
+      const newUser = await AuthAPI.register(loginForm.username, loginForm.password);
+      setUser(newUser);
+      setIsAuthenticated(true);
+      setShowLogin(false);
+      setLoginForm({ username: '', password: '' });
+      
+      AppAPI.showSuccess(`Conta criada com sucesso! Bem-vindo, ${newUser.username}!`);
+      await loadAppData();
+    } catch (error) {
+      AppAPI.showError('Erro ao criar conta. Usuário pode já existir.');
+      console.error('Erro no registro:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   // Logout do usuário
   const handleLogout = async () => {
     try {
@@ -306,7 +336,7 @@ export default function SimpleApp() {
             
             <button
               type="button"
-              onClick={handleLogin}
+              onClick={handleRegister}
               disabled={isLoading}
               className="w-full bg-white dark:bg-gray-700 border-2 border-blue-600 text-blue-600 dark:text-blue-400 
                        font-medium py-2 px-4 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-600

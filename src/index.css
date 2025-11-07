@@ -1,6 +1,4 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
 :root {
   --primary: #3b82f6;
@@ -49,7 +47,6 @@ body {
   padding: 0 1rem;
 }
 
-/* ARKIVE Theme Colors */
 .bg-arkive-primary {
   background-color: var(--primary);
 }
@@ -62,7 +59,6 @@ body {
   border-color: var(--border);
 }
 
-/* Scrollbar customization */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -81,7 +77,6 @@ body {
   background: #2563eb;
 }
 
-/* Loading animations */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -90,7 +85,6 @@ body {
   animation: spin 1s linear infinite;
 }
 
-/* Responsive design */
 @media (max-width: 768px) {
   .container {
     padding: 0 0.5rem;

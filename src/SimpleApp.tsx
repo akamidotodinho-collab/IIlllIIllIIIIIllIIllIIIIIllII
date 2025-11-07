@@ -295,8 +295,28 @@ export default function SimpleApp() {
               )}
             </button>
             
-            <p className="text-sm text-center text-gray-600 dark:text-gray-400 mt-4">
-              Primeiro acesso? O sistema criará sua conta automaticamente.
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300 dark:border-gray-600"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white dark:bg-gray-800 text-gray-500">ou</span>
+              </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={handleLogin}
+              disabled={isLoading}
+              className="w-full bg-white dark:bg-gray-700 border-2 border-blue-600 text-blue-600 dark:text-blue-400 
+                       font-medium py-2 px-4 rounded-lg hover:bg-blue-50 dark:hover:bg-gray-600
+                       disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              Criar Nova Conta
+            </button>
+            
+            <p className="text-xs text-center text-gray-500 dark:text-gray-500 mt-3">
+              💡 Primeiro acesso? Digite usuário e senha desejados e clique em "Criar Nova Conta"
             </p>
           </form>
         </div>

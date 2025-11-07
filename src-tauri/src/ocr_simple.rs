@@ -50,67 +50,24 @@ impl SimpleOCRProcessor {
         Ok(SimpleOCRProcessor)
     }
 
-    // Processar imagem usando tesseract via comando do sistema (mais confiável)
+    // Processar imagem - DESABILITADO (Tesseract não disponível)
     pub async fn process_image<P: AsRef<Path>>(&self, image_path: P) -> Result<SimpleOCRResult, SimpleOCRError> {
         let start_time = std::time::Instant::now();
         let image_path = image_path.as_ref();
         
         log::info!("🔍 Processando imagem: {:?}", image_path);
         
-        // Verificar se tesseract está disponível
-        if !self.is_tesseract_available().await {
-            return Ok(SimpleOCRResult {
-                extracted_text: String::new(),
-                document_type: "unknown".to_string(),
-                extracted_fields: HashMap::new(),
-                confidence_score: 0.0,
-                processing_method: "tesseract_unavailable".to_string(),
-                processing_time_ms: start_time.elapsed().as_millis(),
-                error_message: Some("Tesseract OCR não disponível no sistema".to_string()),
-            });
-        }
-
-        // Executar tesseract via comando do sistema
-        let output = Command::new("tesseract")
-            .arg(image_path.to_str().unwrap())
-            .arg("stdout")
-            .arg("-l")
-            .arg("por+eng")
-            .output()
-            .await?;
-
-        let text = if output.status.success() {
-            String::from_utf8_lossy(&output.stdout).trim().to_string()
-        } else {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
-            log::warn!("⚠️ Tesseract error: {}", error_msg);
-            
-            return Ok(SimpleOCRResult {
-                extracted_text: String::new(),
-                document_type: "unknown".to_string(),
-                extracted_fields: HashMap::new(),
-                confidence_score: 0.0,
-                processing_method: "tesseract_failed".to_string(),
-                processing_time_ms: start_time.elapsed().as_millis(),
-                error_message: Some(format!("Tesseract failed: {}", error_msg)),
-            });
-        };
-
-        // Analisar texto extraído usando heurísticas
-        let document_type = self.classify_document_type(&text);
-        let extracted_fields = self.extract_fields(&text);
-        let confidence_score = self.calculate_confidence(&text, &extracted_fields);
-
-        log::info!("✅ OCR concluído: {} caracteres extraídos", text.len());
-
+        // Tesseract OCR desabilitado - retornar resultado vazio
+        log::warn!("⚠️ Tesseract OCR desabilitado - funcionalidade não disponível");
+        
         Ok(SimpleOCRResult {
-            extracted_text: text,
-            document_type,
-            extracted_fields,
-            confidence_score,
-            processing_method: "tesseract_system".to_string(),
+            extracted_text: String::new(),
+            document_type: "unknown".to_string(),
+            extracted_fields: HashMap::new(),
+            confidence_score: 0.0,
+            processing_method: "tesseract_disabled".to_string(),
             processing_time_ms: start_time.elapsed().as_millis(),
-            error_message: None,
+            error_message: Some("Tesseract OCR desabilitado - funcionalidade não disponível no momento".to_string()),
         })
     }
 
@@ -153,14 +110,6 @@ impl SimpleOCRProcessor {
             processing_time_ms: start_time.elapsed().as_millis(),
             error_message: None,
         })
-    }
-
-    // Verificar se tesseract está disponível
-    async fn is_tesseract_available(&self) -> bool {
-        match Command::new("tesseract").arg("--version").output().await {
-            Ok(output) => output.status.success(),
-            Err(_) => false,
-        }
     }
 
     // HEURÍSTICA: Classificar tipo de documento

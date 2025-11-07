@@ -1,0 +1,6 @@
+ERRO ARKIVE: failed to initialize plugin `log`: attempted to set a logger after the logging system was already initialized
+
+Possíveis soluções:
+1. Instalar WebView2: winget install Microsoft.EdgeWebView2Runtime
+2. Instalar Visual C++: winget install Microsoft.VCRedist.2015+
+3. Executar como administrador

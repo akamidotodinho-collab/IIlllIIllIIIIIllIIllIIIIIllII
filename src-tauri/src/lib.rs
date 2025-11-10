@@ -358,18 +358,28 @@ async fn get_documents(
 async fn get_recent_activities(
     state: State<'_, AppState>,
 ) -> Result<Vec<ActivityResponse>, String> {
-    // Implementação simplificada retornando atividades fictícias
     let authenticated_user = state.authenticated_user.lock().await;
     if let Some(user) = authenticated_user.as_ref() {
-        Ok(vec![
+        let logs = state.db.get_audit_logs(
+            Some(&user.id),
+            None,
+            None,
+            None,
+            None,
+            Some(10),
+        ).map_err(|e| format!("Erro ao buscar atividades recentes: {:?}", e))?;
+        
+        let activities: Vec<ActivityResponse> = logs.into_iter().map(|log| {
             ActivityResponse {
-                id: "1".to_string(),
-                action: "Login realizado".to_string(),
-                document: "Sistema".to_string(),
-                timestamp: chrono::Utc::now().format("%H:%M").to_string(),
-                user: user.username.clone(),
+                id: log.id,
+                action: log.action,
+                document: log.resource_name.unwrap_or_else(|| log.resource_type),
+                timestamp: log.timestamp.format("%H:%M").to_string(),
+                user: log.username,
             }
-        ])
+        }).collect();
+        
+        Ok(activities)
     } else {
         Err("Usuário não autenticado".to_string())
     }

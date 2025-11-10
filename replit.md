@@ -8,21 +8,59 @@ ARKIVE é um **sistema desktop nativo** de gerenciamento de documentos desenvolv
 
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (Nov 6, 2025)
+## Recent Changes (Nov 10, 2025)
 
-### Correções Críticas para Build Windows
-1. ✅ Adicionado módulo `desktop` ao lib.rs
-2. ✅ Registrados comandos desktop (open_file_dialog, save_backup_dialog, open_in_explorer)
-3. ✅ Implementada função AppAPI.selectFiles() para upload nativo
-4. ✅ Desabilitadas dependências problemáticas (tesseract, pdf-extract)
-5. ✅ Removido OCR avançado que causava crash na inicialização
-6. ✅ Mantido apenas SimpleOCR sem dependências externas
+### Funcionalidades Avançadas Implementadas
+
+**1. Extração Automática de Data (NOVO)**
+- ✅ Módulo `date_extractor.rs` (14.7KB) com regex PT-BR
+- ✅ Suporta formatos: DD/MM/YYYY, DD-MM-YYYY, YYYY-MM-DD, DDMMYY, etc
+- ✅ Parser de texto natural: "4 de outubro de 2025", "outubro 2025"
+- ✅ Confidence scoring: filename (95%) → content (75%) → fallback (10%)
+- ✅ Schema database atualizado: colunas `document_date` e `folder_slug`
+
+**2. Pastas Virtuais Automáticas (NOVO)**
+- ✅ Organização automática por YYYY-MM (ex: "2025-10")
+- ✅ APIs: `getAvailableFolders()`, `getDocumentsByFolder()`, `getDocumentsByDateRange()`
+- ✅ Índices otimizados para performance
+- ✅ Migration idempotente (PRAGMA table_info)
+
+**3. Upload em Lote Paralelo (NOVO)**
+- ✅ Processamento de 40+ PDFs simultaneamente
+- ✅ Batching inteligente (10 arquivos por vez)
+- ✅ UI de progresso com barra visual (X de Y arquivos)
+- ✅ Contagem de sucessos/erros em tempo real
+- ✅ Continua processando mesmo se 1 arquivo falhar
+
+**4. Busca Inteligente PT-BR (NOVO)**
+- ✅ Módulo `date_search_parser.rs` (410 linhas)
+- ✅ Detecta queries de data: "04/10/2025", "outubro 2025", "4 de outubro"
+- ✅ Previne falsos positivos (ex: "setor" não detecta "setembro")
+- ✅ Previne queries mistas (ex: "rastreabilidade outubro" vai para FTS5)
+- ✅ Word boundaries (\b) para matching preciso
+- ✅ Testes de regressão completos
+
+**5. Remoção Completa de Dados Mockados**
+- ✅ Removida função `get_recent_activities` com dados fictícios
+- ✅ Removidas 220+ linhas de mock data em `auditApi.ts`
+- ✅ 100% dados REAIS do banco SQLite
 
 ### Status do Projeto
-- **Build Frontend:** ✅ Funcionando (2.32s)
+- **Build Frontend:** ✅ Funcionando (Vite 7.0 + React 19.1)
+- **Build Backend:** ✅ Rust compilando sem erros funcionais
 - **Erros LSP:** 2 (apenas ícones, não afeta funcionalidade)
 - **Pronto para Build Windows:** ✅ Sim
-- **Funcionalidades:** Login, upload, busca, auditoria, backup (OCR limitado)
+- **Funcionalidades Core:** Login, upload em lote, busca inteligente, auditoria, backup, pastas virtuais
+
+### Arquivos Modificados Nesta Sessão
+- `src-tauri/src/lib.rs` - Integração busca inteligente
+- `src-tauri/src/database_sqlite.rs` - Migration idempotente + helpers
+- `src-tauri/src/date_extractor.rs` - NOVO módulo (extração de data)
+- `src-tauri/src/date_search_parser.rs` - NOVO módulo (busca por data)
+- `src/SimpleApp.tsx` - Upload paralelo + UI de progresso
+- `src/services/documentApi.ts` - APIs atualizadas
+- `src/services/auditApi.ts` - Dados mockados removidos
+- `tsconfig.json` - Lib ES2020 para Promise.allSettled
 
 ## System Architecture
 

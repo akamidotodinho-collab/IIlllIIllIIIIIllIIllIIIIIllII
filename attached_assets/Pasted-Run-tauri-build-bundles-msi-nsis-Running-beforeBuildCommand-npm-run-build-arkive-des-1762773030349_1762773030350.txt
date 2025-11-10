@@ -1,0 +1,190 @@
+Run tauri build --bundles msi nsis
+  
+    Running beforeBuildCommand `npm run build`
+> arkive-desktop@1.0.0 build
+> vite build
+You are using Node.js 18.20.8. Vite requires Node.js version 20.19+ or 22.12+. Please upgrade your Node.js version.
+vite v7.1.4 building for production...
+transforming...
+✓ 1678 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                   1.21 kB │ gzip:  0.60 kB
+dist/assets/index-CLAABvTC.css   26.39 kB │ gzip:  5.77 kB
+dist/assets/vendor-gH-7aFTg.js   11.83 kB │ gzip:  4.20 kB
+dist/assets/index-JachIHlJ.js   245.47 kB │ gzip: 71.39 kB
+✓ built in 4.33s
+    Updating crates.io index
+   Compiling arkive v0.1.0 (D:\a\IIlllIIllIIIIIllIIllIIIIIllII\IIlllIIllIIIIIllIIllIIIIIllII\src-tauri)
+warning: unused import: `tauri::Manager`
+   --> src\lib.rs:757:17
+    |
+757 |             use tauri::Manager;
+    |                 ^^^^^^^^^^^^^^
+    |
+    = note: `#[warn(unused_imports)]` on by default
+error[E0599]: no method named `search_documents_fts` found for struct `Arc<Database>` in the current scope
+   --> src\lib.rs:608:22
+    |
+608 |             state.db.search_documents_fts(&user.id, &query, search_limit)
+    |                      ^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `search_documents` with a similar name
+    |
+608 -             state.db.search_documents_fts(&user.id, &query, search_limit)
+608 +             state.db.search_documents(&user.id, &query, search_limit)
+    |
+error[E0599]: no method named `search_documents_simple` found for struct `Arc<Database>` in the current scope
+   --> src\lib.rs:611:22
+    |
+611 |             state.db.search_documents_simple(&user.id, &query, search_limit)
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `search_documents` with a similar name
+    |
+611 -             state.db.search_documents_simple(&user.id, &query, search_limit)
+611 +             state.db.search_documents(&user.id, &query, search_limit)
+    |
+error[E0308]: mismatched types
+   --> src\lib.rs:684:13
+    |
+680 |         state.db.index_document_content(
+    |                  ---------------------- arguments to this method are incorrect
+...
+684 |             extracted_fields,
+    |             ^^^^^^^^^^^^^^^^ expected `&Value`, found `Value`
+    |
+note: method defined here
+   --> src\database_sqlite.rs:880:12
+    |
+880 |     pub fn index_document_content(
+    |            ^^^^^^^^^^^^^^^^^^^^^^
+...
+885 |         extracted_fields: &serde_json::Value,
+    |         ------------------------------------
+help: consider borrowing here
+    |
+684 |             &extracted_fields,
+    |             +
+error[E0599]: no method named `get_document_by_id` found for struct `Arc<Database>` in the current scope
+   --> src\lib.rs:747:33
+    |
+747 |         let document = state.db.get_document_by_id(&document_id)
+    |                                 ^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `get_documents_by_user` with a similar name
+    |
+747 -         let document = state.db.get_document_by_id(&document_id)
+747 +         let document = state.db.get_documents_by_user(&document_id)
+    |
+error[E0061]: this function takes 1 argument but 0 arguments were supplied
+   --> src\lib.rs:761:19
+    |
+761 |             match desktop::save_backup_dialog().await {
+    |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^-- argument #1 of type `AppHandle` is missing
+    |
+note: function defined here
+   --> src\desktop.rs:30:14
+    |
+30  | pub async fn save_backup_dialog(app: AppHandle) -> Result<Option<String>, String> {
+    |              ^^^^^^^^^^^^^^^^^^ --------------
+help: provide the argument
+    |
+761 |             match desktop::save_backup_dialog(/* AppHandle */).await {
+    |                                               +++++++++++++++
+error[E0061]: this method takes 1 argument but 5 arguments were supplied
+   --> src\lib.rs:855:31
+    |
+855 |         let doc_id = state.db.create_document(
+    |                               ^^^^^^^^^^^^^^^
+856 |             &user.id,
+    |             -------- expected `&Document`, found `&String`
+857 |             file_name,
+    |             --------- unexpected argument #2 of type `&str`
+858 |             &file_path,
+    |             ---------- unexpected argument #3 of type `&std::string::String`
+859 |             &file_type,
+    |             ---------- unexpected argument #4 of type `&std::string::String`
+860 |             file_size,
+    |             --------- unexpected argument #5 of type `i64`
+    |
+    = note: expected reference `&database_sqlite::Document`
+               found reference `&std::string::String`
+note: method defined here
+   --> src\database_sqlite.rs:415:12
+    |
+415 |     pub fn create_document(&self, document: &Document) -> SqliteResult<()> {
+    |            ^^^^^^^^^^^^^^^        -------------------
+help: remove the extra arguments
+    |
+856 -             &user.id,
+856 +             /* &database_sqlite::Document */,
+    |
+error[E0308]: mismatched types
+   --> src\lib.rs:870:18
+    |
+870 |             Some(doc_id.clone()),
+    |             ---- ^^^^^^^^^^^^^^ expected `String`, found `()`
+    |             |
+    |             arguments to this enum variant are incorrect
+    |
+help: the type constructed contains `()` due to the type of the argument passed
+   --> src\lib.rs:870:13
+    |
+870 |             Some(doc_id.clone()),
+    |             ^^^^^--------------^
+    |                  |
+    |                  this argument influences the type of `Some`
+note: tuple variant defined here
+   --> /rustc/29483883eed69d5fb4db01964cdf2af4d86e9cb2\library\core\src\option.rs:599:5
+error[E0277]: `()` doesn't implement `std::fmt::Display`
+   --> src\lib.rs:882:46
+    |
+882 |         log::info!("✅ Documento criado: {}", doc_id);
+    |                                          --   ^^^^^^ `()` cannot be formatted with the default formatter
+    |                                          |
+    |                                          required by this formatting parameter
+    |
+    = help: the trait `std::fmt::Display` is not implemented for `()`
+    = note: in format strings you may be able to use `{:?}` (or {:#?} for pretty-print) instead
+    = note: this error originates in the macro `$crate::__private_api::format_args` which comes from the expansion of the macro `log::info` (in Nightly builds, run with -Z macro-backtrace for more info)
+error[E0599]: no method named `get_document_by_id` found for struct `Arc<Database>` in the current scope
+   --> src\lib.rs:909:33
+    |
+909 |         let document = state.db.get_document_by_id(&document_id)
+    |                                 ^^^^^^^^^^^^^^^^^^
+    |
+help: there is a method `get_documents_by_user` with a similar name
+    |
+909 -         let document = state.db.get_document_by_id(&document_id)
+909 +         let document = state.db.get_documents_by_user(&document_id)
+    |
+error[E0599]: no method named `delete_document` found for struct `Arc<Database>` in the current scope
+   --> src\lib.rs:918:22
+    |
+918 |             state.db.delete_document(&document_id)
+    |                      ^^^^^^^^^^^^^^^
+    |
+help: there is a method `create_document` with a similar name
+    |
+918 -             state.db.delete_document(&document_id)
+918 +             state.db.create_document(&document_id)
+    |
+error[E0599]: no method named `path` found for mutable reference `&mut tauri::App` in the current scope
+   --> src\lib.rs:983:38
+    |
+983 |             if let Ok(app_dir) = app.path().app_data_dir() {
+    |                                      ^^^^ method not found in `&mut tauri::App`
+    |
+    = help: items from traits can only be used if the trait is in scope
+help: trait `Manager` which provides `path` is implemented but not in scope; perhaps you want to import it
+    |
+1   + use tauri::Manager;
+    |
+Some errors have detailed explanations: E0061, E0277, E0308, E0599.
+For more information about an error, try `rustc --explain E0061`.
+warning: `arkive` (lib) generated 1 warning
+error: could not compile `arkive` (lib) due to 11 previous errors; 1 warning emitted
+failed to build app: failed to build app
+    Error failed to build app: failed to build app
+Error: Process completed with exit code 1.

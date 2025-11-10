@@ -26,6 +26,7 @@ export default function SimpleApp() {
   const [activeTab, setActiveTab] = useState<'documents' | 'search' | 'audit'>('documents');
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLogin, setShowLogin] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
 
   // Inicializar app - verificar usuário autenticado
   useEffect(() => {
@@ -177,19 +178,26 @@ export default function SimpleApp() {
     }
   };
 
-  // Upload nativo com APIs do Tauri Desktop
+  // Upload em LOTE com processamento PARALELO (40+ PDFs simultâneos)
   const handleUpload = async () => {
     try {
-      // Usar dialog nativo do Tauri para seleção de arquivos
+      // Usar dialog nativo do Tauri para seleção múltipla
       const selectedFiles = await AppAPI.selectFiles();
       if (!selectedFiles || selectedFiles.length === 0) {
         return;
       }
 
       setIsLoading(true);
-      AppAPI.showSuccess(`Processando ${selectedFiles.length} arquivo(s)...`);
+      setUploadProgress({ current: 0, total: selectedFiles.length });
+      AppAPI.showSuccess(`Processando ${selectedFiles.length} arquivo(s) em paralelo...`);
 
-      for (const filePath of selectedFiles) {
+      let processedCount = 0;
+      let successCount = 0;
+      let errorCount = 0;
+
+      // Processar TODOS os arquivos em PARALELO com Promise.allSettled
+      // (não para se um falhar, continua processando os outros)
+      const processFile = async (filePath: string) => {
         try {
           console.log(`📁 Processando: ${filePath}`);
           
@@ -197,9 +205,9 @@ export default function SimpleApp() {
           const ocrResult = await DocumentAPI.processDocumentOCR(filePath);
           console.log(`🔍 OCR concluído: ${ocrResult.document_type}`);
 
-          // 2. Criar documento no backend
+          // 2. Criar documento no backend (com extração automática de data)
           const docResult = await DocumentAPI.createDocument(filePath, ocrResult);
-          console.log(`📄 Documento criado no backend: ${docResult.id}`);
+          console.log(`📄 Documento criado: ${docResult.id} (pasta: ${docResult.folder_slug})`);
 
           // 3. Indexar para busca FTS5
           await SearchAPI.indexDocument(
@@ -208,23 +216,57 @@ export default function SimpleApp() {
             ocrResult.document_type, 
             ocrResult.extracted_fields
           );
-          console.log(`✅ Documento indexado para busca FTS5`);
+          console.log(`✅ Indexado para busca FTS5`);
 
+          return { success: true, filePath };
         } catch (error) {
           console.error(`❌ Erro ao processar ${filePath}:`, error);
-          AppAPI.showError(`Falha ao processar: ${filePath.split('/').pop()}`);
+          return { success: false, filePath, error };
+        } finally {
+          processedCount++;
+          setUploadProgress({ current: processedCount, total: selectedFiles.length });
         }
+      };
+
+      // Processar todos em paralelo (máximo 10 simultâneos para não sobrecarregar)
+      const BATCH_SIZE = 10;
+      const results = [];
+      
+      for (let i = 0; i < selectedFiles.length; i += BATCH_SIZE) {
+        const batch = selectedFiles.slice(i, i + BATCH_SIZE);
+        const batchResults = await Promise.allSettled(batch.map(processFile));
+        results.push(...batchResults);
       }
 
-      // 3. Recarregar lista de documentos
+      // Contar sucessos e erros
+      results.forEach(result => {
+        if (result.status === 'fulfilled' && result.value.success) {
+          successCount++;
+        } else {
+          errorCount++;
+          const fileName = result.status === 'fulfilled' 
+            ? result.value.filePath.split(/[/\\]/).pop() 
+            : 'desconhecido';
+          AppAPI.showError(`Falha: ${fileName}`);
+        }
+      });
+
+      // Recarregar lista de documentos
       await loadAppData();
-      AppAPI.showSuccess(`✅ ${selectedFiles.length} documento(s) adicionado(s) com sucesso!`);
+      
+      // Mensagem final
+      if (errorCount === 0) {
+        AppAPI.showSuccess(`✅ ${successCount} documento(s) processado(s) com sucesso!`);
+      } else {
+        AppAPI.showSuccess(`⚠️ ${successCount} sucesso, ${errorCount} erro(s)`);
+      }
       
     } catch (error) {
       console.error('❌ Erro no upload:', error);
       AppAPI.showError('Erro ao selecionar ou processar arquivos');
     } finally {
       setIsLoading(false);
+      setUploadProgress(null);
     }
   };
 
@@ -466,6 +508,26 @@ export default function SimpleApp() {
           )}
         </div>
       </header>
+
+      {/* Indicador de Progresso do Upload em Lote */}
+      {uploadProgress && (
+        <div className="bg-blue-50 dark:bg-blue-900/20 border-b border-blue-200 dark:border-blue-800 px-6 py-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
+              Processando arquivos em paralelo...
+            </span>
+            <span className="text-sm text-blue-700 dark:text-blue-300">
+              {uploadProgress.current} de {uploadProgress.total}
+            </span>
+          </div>
+          <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+            <div 
+              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+              style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Conteúdo */}
       <main className="p-6">

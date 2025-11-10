@@ -11,9 +11,11 @@ mod backup;
 mod ocr_simple;
 mod desktop;
 mod date_extractor;
+mod date_search_parser;
 
 use database_sqlite::{Database, User};
 use date_extractor::{DateExtractor, generate_folder_slug};
+use date_search_parser::DateSearchParser;
 // use ocr::{OCRProcessor, ExtractedMetadata, DocumentType};  // Desabilitado
 use ocr_simple::{SimpleOCRResult, create_simple_ocr_processor};
 use std::path::PathBuf;
@@ -908,7 +910,7 @@ pub struct SearchResultResponse {
     pub created_at: String,
 }
 
-// Buscar documentos por texto
+// Buscar documentos por texto OU por data inteligente em PT-BR
 #[tauri::command]
 async fn search_documents(
     query: String,
@@ -928,21 +930,61 @@ async fn search_documents(
         let (total_docs, indexed_docs) = state.db.get_search_stats(&user.id)
             .map_err(|e| format!("Erro ao obter estatísticas: {:?}", e))?;
         
-        // Executar busca (FTS5 ou fallback)
-        let results = if use_fts.unwrap_or(true) {
-            // Tentar busca FTS5 primeiro
-            match state.db.search_documents(&user.id, &query, limit) {
-                Ok(results) => results,
-                Err(e) => {
-                    log::warn!("FTS5 falhou, usando busca simples: {:?}", e);
-                    state.db.simple_search_documents(&user.id, &query, limit)
-                        .map_err(|e| format!("Erro na busca: {:?}", e))?
-                }
+        // BUSCA INTELIGENTE POR DATA EM PT-BR
+        // Tentar detectar se a query é uma busca por data antes de usar FTS5
+        let date_parser = DateSearchParser::new();
+        let results = if let Some(date_query) = date_parser.parse(&query) {
+            log::info!("📅 Detectada busca por data: {} a {} ({:?})", 
+                      date_query.start_date.format("%d/%m/%Y"),
+                      date_query.end_date.format("%d/%m/%Y"),
+                      date_query.query_type);
+            
+            // Buscar documentos por intervalo de data
+            let mut docs = state.db.get_documents_by_date_range(
+                &user.id,
+                &date_query.start_date.format("%Y-%m-%d").to_string(),
+                &date_query.end_date.format("%Y-%m-%d").to_string()
+            ).map_err(|e| format!("Erro na busca por data: {:?}", e))?;
+            
+            // Aplicar limit se especificado
+            if let Some(limit_value) = limit {
+                docs.truncate(limit_value);
             }
+            
+            // Converter para SearchResult format
+            docs.into_iter().map(|doc| {
+                database_sqlite::SearchResult {
+                    document_id: doc.id.clone(),
+                    document_name: doc.name.clone(),
+                    document_type: doc.file_type.clone(),
+                    file_path: doc.file_path.clone(),
+                    relevance_score: 1.0, // Busca por data tem relevância máxima
+                    matched_content: format!(
+                        "Data: {} | Pasta: {}", 
+                        doc.document_date.as_deref().unwrap_or("N/A"),
+                        doc.folder_slug.as_deref().unwrap_or("N/A")
+                    ),
+                    created_at: chrono::NaiveDateTime::parse_from_str(&doc.created_at, "%Y-%m-%d %H:%M:%S")
+                        .unwrap_or_else(|_| chrono::Local::now().naive_local()),
+                }
+            }).collect()
         } else {
-            // Busca simples
-            state.db.simple_search_documents(&user.id, &query, limit)
-                .map_err(|e| format!("Erro na busca simples: {:?}", e))?
+            // Executar busca FTS5 normal (texto)
+            if use_fts.unwrap_or(true) {
+                // Tentar busca FTS5 primeiro
+                match state.db.search_documents(&user.id, &query, limit) {
+                    Ok(results) => results,
+                    Err(e) => {
+                        log::warn!("FTS5 falhou, usando busca simples: {:?}", e);
+                        state.db.simple_search_documents(&user.id, &query, limit)
+                            .map_err(|e| format!("Erro na busca: {:?}", e))?
+                    }
+                }
+            } else {
+                // Busca simples
+                state.db.simple_search_documents(&user.id, &query, limit)
+                    .map_err(|e| format!("Erro na busca simples: {:?}", e))?
+            }
         };
         
         let search_time = start_time.elapsed().as_millis();

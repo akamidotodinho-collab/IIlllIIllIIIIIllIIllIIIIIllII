@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 use chrono::Utc;
@@ -325,6 +325,7 @@ async fn get_stats(
         Err("Usuário não autenticado".to_string())
     }
 }
+
 #[tauri::command]
 async fn get_documents(
     state: State<'_, AppState>,
@@ -527,6 +528,99 @@ async fn process_document_simple_ocr(
     }
 }
 
+// Processar documento com OCR + IA - DESABILITADO (requer tesseract)
+/*
+#[tauri::command]
+async fn process_document_ocr(
+    file_path: String,
+    state: State<'_, AppState>,
+) -> Result<OCRResult, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        let start_time = std::time::Instant::now();
+        
+        // Inicializar OCR processor se necessário
+        let mut ocr_guard = state.ocr_processor.lock().await;
+        if ocr_guard.is_none() {
+            match ocr::create_ocr_processor() {
+                Ok(processor) => {
+                    *ocr_guard = Some(processor);
+                    log::info!("✅ OCR Processor inicializado on-demand");
+                }
+                Err(e) => {
+                    log::error!("❌ Erro ao inicializar OCR: {:?}", e);
+                    return Err(format!("Erro ao inicializar OCR: {:?}", e));
+                }
+            }
+        }
+        
+        if let Some(ocr_processor) = ocr_guard.as_mut() {
+            // Determinar tipo do arquivo
+            let path = std::path::Path::new(&file_path);
+            let extension = path.extension()
+                .and_then(|ext| ext.to_str())
+                .map(|s| s.to_lowercase());
+            
+            let extracted_text = match extension.as_deref() {
+                Some("pdf") => {
+                    ocr_processor.extract_text_from_pdf(&file_path)
+                        .map_err(|e| format!("Erro ao processar PDF: {:?}", e))?
+                }
+                Some("png") | Some("jpg") | Some("jpeg") | Some("tiff") | Some("bmp") => {
+                    ocr_processor.extract_text_from_image(&file_path)
+                        .map_err(|e| format!("Erro ao processar imagem: {:?}", e))?
+                }
+                _ => {
+                    return Err("Tipo de arquivo não suportado. Use PDF, PNG, JPG, JPEG, TIFF ou BMP.".to_string());
+                }
+            };
+            
+            // Analisar documento com IA
+            let metadata = ocr_processor.analyze_document(&extracted_text);
+            let processing_time = start_time.elapsed().as_millis();
+            
+            // Log da operação na trilha de auditoria
+            let file_name = path.file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("documento_desconhecido");
+                
+            let _ = log_audit_event(
+                &state,
+                &user.id,
+                &user.username,
+                "OCR_PROCESS",
+                "DOCUMENT",
+                Some(file_path.clone()),
+                Some(file_name.to_string()),
+                None,
+                Some(serde_json::json!({
+                    "document_type": format!("{:?}", metadata.document_type),
+                    "confidence_score": metadata.confidence_score,
+                    "processing_time_ms": processing_time,
+                    "extracted_fields_count": metadata.extracted_fields.len()
+                })),
+                true,
+            ).await;
+            
+            let result = OCRResult {
+                extracted_text: metadata.text_content,
+                document_type: format!("{:?}", metadata.document_type),
+                extracted_fields: metadata.extracted_fields,
+                confidence_score: metadata.confidence_score,
+                processing_time_ms: processing_time,
+            };
+            
+            log::info!("✅ OCR processamento concluído em {}ms", processing_time);
+            Ok(result)
+        } else {
+            Err("OCR Processor não pôde ser inicializado".to_string())
+        }
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+*/  // Fim do bloco comentado process_document_ocr
+
 // Obter tipos de documento suportados
 #[tauri::command]
 async fn get_supported_document_types() -> Result<Vec<String>, String> {
@@ -582,11 +676,12 @@ pub struct SearchResultResponse {
     pub document_name: String,
     pub document_type: String,
     pub file_path: String,
-    pub relevance_score: f64,
+    pub relevance_score: f32,
     pub matched_content: String,
     pub created_at: String,
 }
 
+// Buscar documentos por texto
 #[tauri::command]
 async fn search_documents(
     query: String,
@@ -598,26 +693,53 @@ async fn search_documents(
     if let Some(user) = authenticated_user.as_ref() {
         let start_time = std::time::Instant::now();
         
-        // Usar FTS5 por padrão
-        let use_fts5 = use_fts.unwrap_or(true);
-        let search_limit = limit.unwrap_or(50);
+        if query.trim().is_empty() {
+            return Err("Query de busca não pode estar vazia".to_string());
+        }
         
-        log::info!("🔍 Buscando documentos: query='{}', fts={}, limit={}", query, use_fts5, search_limit);
+        // Obter estatísticas
+        let (total_docs, indexed_docs) = state.db.get_search_stats(&user.id)
+            .map_err(|e| format!("Erro ao obter estatísticas: {:?}", e))?;
         
-        let results = if use_fts5 {
-            state.db.search_documents_fts(&user.id, &query, search_limit)
-                .map_err(|e| format!("Erro na busca FTS5: {:?}", e))?
+        // Executar busca (FTS5 ou fallback)
+        let results = if use_fts.unwrap_or(true) {
+            // Tentar busca FTS5 primeiro
+            match state.db.search_documents(&user.id, &query, limit) {
+                Ok(results) => results,
+                Err(e) => {
+                    log::warn!("FTS5 falhou, usando busca simples: {:?}", e);
+                    state.db.simple_search_documents(&user.id, &query, limit)
+                        .map_err(|e| format!("Erro na busca: {:?}", e))?
+                }
+            }
         } else {
-            state.db.search_documents_simple(&user.id, &query, search_limit)
+            // Busca simples
+            state.db.simple_search_documents(&user.id, &query, limit)
                 .map_err(|e| format!("Erro na busca simples: {:?}", e))?
         };
         
         let search_time = start_time.elapsed().as_millis();
         
-        // Buscar estatísticas
-        let (indexed_docs, total_docs) = state.db.get_search_stats(&user.id)
-            .map_err(|e| format!("Erro ao buscar estatísticas: {:?}", e))?;
+        // Log da busca na trilha de auditoria
+        let _ = log_audit_event(
+            &state,
+            &user.id,
+            &user.username,
+            "SEARCH",
+            "DOCUMENT",
+            None,
+            None,
+            None,
+            Some(serde_json::json!({
+                "query": query,
+                "results_count": results.len(),
+                "search_time_ms": search_time,
+                "fts_enabled": use_fts.unwrap_or(true)
+            })),
+            true,
+        ).await;
         
+        // Converter para response format
         let response_results: Vec<SearchResultResponse> = results.into_iter().map(|r| {
             SearchResultResponse {
                 document_id: r.document_id,
@@ -631,27 +753,8 @@ async fn search_documents(
         }).collect();
         
         let total_found = response_results.len();
-        
-        log::info!("✅ Busca concluída: {} resultados em {}ms", total_found, search_time);
-        
-        // Log da operação
-        let _ = log_audit_event(
-            &state,
-            &user.id,
-            &user.username,
-            "SEARCH",
-            "DOCUMENT",
-            None,
-            None,
-            None,
-            Some(serde_json::json!({
-                "query": query,
-                "results_found": total_found,
-                "search_time_ms": search_time,
-                "use_fts5": use_fts5
-            })),
-            true,
-        ).await;
+        log::info!("🔍 Busca '{}' concluída em {}ms - {} resultados", 
+                  query, search_time, total_found);
         
         Ok(SearchResponse {
             results: response_results,
@@ -665,6 +768,7 @@ async fn search_documents(
     }
 }
 
+// Indexar documento após processamento OCR
 #[tauri::command]
 async fn index_document_for_search(
     document_id: String,
@@ -675,57 +779,60 @@ async fn index_document_for_search(
 ) -> Result<bool, String> {
     let authenticated_user = state.authenticated_user.lock().await;
     if let Some(user) = authenticated_user.as_ref() {
-        log::info!("📇 Indexando documento {} para busca FTS5", document_id);
-        
         state.db.index_document_content(
             &document_id,
             &extracted_text,
             &document_type,
-            extracted_fields,
+            &extracted_fields,
         ).map_err(|e| format!("Erro ao indexar documento: {:?}", e))?;
         
-        // Log da operação
+        // Log da indexação
+        let doc_id_clone = document_id.clone();
         let _ = log_audit_event(
             &state,
             &user.id,
             &user.username,
-            "INDEX_DOCUMENT",
-            "SEARCH",
-            Some(document_id.clone()),
+            "INDEX",
+            "DOCUMENT",
+            Some(document_id),
             None,
             None,
             Some(serde_json::json!({
-                "document_id": document_id,
                 "document_type": document_type,
-                "text_length": extracted_text.len()
+                "text_length": extracted_text.len(),
+                "fields_count": extracted_fields.as_object().map(|o| o.len()).unwrap_or(0)
             })),
             true,
         ).await;
         
-        log::info!("✅ Documento indexado com sucesso");
+        log::info!("📝 Documento {} indexado com sucesso", doc_id_clone);
         Ok(true)
     } else {
         Err("Usuário não autenticado".to_string())
     }
 }
 
+// Obter estatísticas de busca
 #[tauri::command]
 async fn get_search_statistics(
     state: State<'_, AppState>,
 ) -> Result<serde_json::Value, String> {
     let authenticated_user = state.authenticated_user.lock().await;
     if let Some(user) = authenticated_user.as_ref() {
-        let (indexed_docs, total_docs) = state.db.get_search_stats(&user.id)
-            .map_err(|e| format!("Erro ao buscar estatísticas: {:?}", e))?;
+        let (total_docs, indexed_docs) = state.db.get_search_stats(&user.id)
+            .map_err(|e| format!("Erro ao obter estatísticas: {:?}", e))?;
+        
+        let indexing_percentage = if total_docs > 0 {
+            (indexed_docs as f64 / total_docs as f64 * 100.0) as u32
+        } else {
+            0
+        };
         
         Ok(serde_json::json!({
-            "indexed_documents": indexed_docs,
             "total_documents": total_docs,
-            "indexing_coverage": if total_docs > 0 {
-                (indexed_docs as f64 / total_docs as f64) * 100.0
-            } else {
-                0.0
-            }
+            "indexed_documents": indexed_docs,
+            "indexing_percentage": indexing_percentage,
+            "fts5_available": true
         }))
     } else {
         Err("Usuário não autenticado".to_string())
@@ -733,228 +840,71 @@ async fn get_search_statistics(
 }
 
 // ================================
-// COMANDOS DE DOCUMENTOS (CRUD)
+// COMANDO DOWNLOAD NATIVO
 // ================================
 
+// Download de documento com save-as dialog nativo
 #[tauri::command]
 async fn download_document(
     document_id: String,
     state: State<'_, AppState>,
 ) -> Result<bool, String> {
     let authenticated_user = state.authenticated_user.lock().await;
-        if let Some(user) = authenticated_user.as_ref() {
-        // Buscar informações do documento
-        let document = state.db.get_document_by_id(&document_id)
-            .map_err(|e| format!("Erro ao buscar documento: {:?}", e))?;
-        
-        if let Some(doc) = document {
-            // Verificar se o documento pertence ao usuário
-            if doc.user_id != user.id {
-                return Err("Acesso negado: documento não pertence ao usuário".to_string());
-            }
-            
-            // Usar dialog nativo para salvar arquivo
-            use tauri::Manager;
-            let app_handle = state.db.clone(); // Placeholder - precisa do app_handle real
-            
-            // Abrir dialog "Save As" nativo
-            match desktop::save_backup_dialog().await {
-                Ok(save_path) => {
-                    if let Some(dest_path) = save_path {
-                        // Copiar arquivo para destino escolhido
-                        std::fs::copy(&doc.file_path, &dest_path)
-                            .map_err(|e| format!("Erro ao copiar arquivo: {:?}", e))?;
-                        
-                        // Log da operação
-                        let _ = log_audit_event(
-                            &state,
-                            &user.id,
-                            &user.username,
-                            "DOWNLOAD",
-                            "DOCUMENT",
-                            Some(document_id.clone()),
-                            Some(doc.name.clone()),
-                            None,
-                            Some(serde_json::json!({
-                                "document_id": document_id,
-                                "destination": dest_path
-                            })),
-                            true,
-                        ).await;
-                        
-                        log::info!("✅ Download concluído: {}", doc.name);
-                        Ok(true)
-                    } else {
-                        Ok(false) // Usuário cancelou
-                    }
-                }
-                Err(e) => {
-                    Err(format!("Erro ao abrir dialog: {:?}", e))
-                }
-            }
-        } else {
-            Err("Documento não encontrado".to_string())
-        }
-    } else {
-        Err("Usuário não autenticado".to_string())
-    }
-}
-
-// Helper function para formatar tamanho
-fn format_size(bytes: i64) -> String {
-    const KB: i64 = 1024;
-    const MB: i64 = KB * 1024;
-    const GB: i64 = MB * 1024;
-    
-    if bytes >= GB {
-        format!("{:.2} GB", bytes as f64 / GB as f64)
-    } else if bytes >= MB {
-        format!("{:.2} MB", bytes as f64 / MB as f64)
-    } else if bytes >= KB {
-        format!("{:.2} KB", bytes as f64 / KB as f64)
-    } else {
-        format!("{} B", bytes)
-    }
-}
-
-// ================================
-// COMANDOS PARA CRIAR DOCUMENTO
-// ================================
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct CreateDocumentRequest {
-    pub file_path: String,
-    pub ocr_result: serde_json::Value,
-}
-
-#[tauri::command]
-async fn create_document(
-    file_path: String,
-    ocr_result: serde_json::Value,
-    state: State<'_, AppState>,
-) -> Result<String, String> {
-    let authenticated_user = state.authenticated_user.lock().await;
     if let Some(user) = authenticated_user.as_ref() {
-        log::info!("📄 Criando documento: {}", file_path);
+        // Buscar documento no banco
+        let documents = state.db.get_documents_by_user(&user.id)
+            .map_err(|e| format!("Erro ao buscar documento: {:?}", e))?;
+            
+        let document = documents.into_iter()
+            .find(|doc| doc.id == document_id)
+            .ok_or_else(|| "Documento não encontrado".to_string())?;
+            
+        // Dialog save-as nativo (será implementado via plugin-dialog no frontend)
+        log::info!("📥 Download solicitado: {} ({})", document.name, document.file_type);
         
-        let path = std::path::Path::new(&file_path);
-        let file_name = path.file_name()
-            .and_then(|name| name.to_str())
-            .ok_or("Nome de arquivo inválido")?;
-        
-        let file_type = path.extension()
-            .and_then(|ext| ext.to_str())
-            .map(|s| s.to_lowercase())
-            .unwrap_or_else(|| "unknown".to_string());
-        
-        let file_size = std::fs::metadata(&file_path)
-            .map(|m| m.len() as i64)
-            .unwrap_or(0);
-        
-        // Criar documento no banco
-        let doc_id = state.db.create_document(
-            &user.id,
-            file_name,
-            &file_path,
-            &file_type,
-            file_size,
-        ).map_err(|e| format!("Erro ao criar documento: {:?}", e))?;
-        
-        // Log da operação
+        // Log da operação na trilha de auditoria
         let _ = log_audit_event(
             &state,
             &user.id,
             &user.username,
-            "CREATE_DOCUMENT",
+            "DOWNLOAD",
             "DOCUMENT",
-            Some(doc_id.clone()),
-            Some(file_name.to_string()),
+            Some(document.id.clone()),
+            Some(document.name.clone()),
             None,
             Some(serde_json::json!({
-                "document_id": doc_id,
-                "file_name": file_name,
-                "file_size": file_size,
-                "ocr_result": ocr_result
+                "file_name": document.name,
+                "file_size": document.file_size,
+                "file_type": document.file_type
             })),
             true,
         ).await;
         
-        log::info!("✅ Documento criado: {}", doc_id);
-        
-        // Retornar documento como JSON
-        let doc_json = serde_json::json!({
-            "id": doc_id,
-            "name": file_name,
-            "file_size": file_size,
-            "file_type": file_type,
-            "created_at": chrono::Utc::now().to_rfc3339()
-        });
-        
-        Ok(doc_json.to_string())
+        Ok(true)
     } else {
         Err("Usuário não autenticado".to_string())
     }
 }
 
-#[tauri::command]
-async fn delete_document(
-    document_id: String,
-    state: State<'_, AppState>,
-) -> Result<bool, String> {
-    let authenticated_user = state.authenticated_user.lock().await;
-    if let Some(user) = authenticated_user.as_ref() {
-        log::info!("🗑️ Deletando documento: {}", document_id);
-        
-        // Buscar documento para verificar propriedade
-        let document = state.db.get_document_by_id(&document_id)
-            .map_err(|e| format!("Erro ao buscar documento: {:?}", e))?;
-        
-        if let Some(doc) = document {
-            if doc.user_id != user.id {
-                return Err("Acesso negado: documento não pertence ao usuário".to_string());
-            }
-            
-            // Deletar do banco
-            state.db.delete_document(&document_id)
-                .map_err(|e| format!("Erro ao deletar documento: {:?}", e))?;
-            
-            // Tentar deletar arquivo físico (não crítico se falhar)
-            let _ = std::fs::remove_file(&doc.file_path);
-            
-            // Log da operação
-            let _ = log_audit_event(
-                &state,
-                &user.id,
-                &user.username,
-                "DELETE_DOCUMENT",
-                "DOCUMENT",
-                Some(document_id.clone()),
-                Some(doc.name.clone()),
-                None,
-                Some(serde_json::json!({
-                    "document_id": document_id,
-                    "file_name": doc.name
-                })),
-                true,
-            ).await;
-            
-            log::info!("✅ Documento deletado: {}", document_id);
-            Ok(true)
-        } else {
-            Err("Documento não encontrado".to_string())
-        }
-    } else {
-        Err("Usuário não autenticado".to_string())
+// Função utilitária para formatar tamanho
+fn format_size(bytes: i64) -> String {
+    const UNITS: &[&str] = &["B", "KB", "MB", "GB"];
+    let mut size = bytes as f64;
+    let mut unit_index = 0;
+    
+    while size >= 1024.0 && unit_index < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit_index += 1;
     }
+    
+    format!("{:.1} {}", size, UNITS[unit_index])
 }
 
-// ================================
-// ENTRY POINT - MAIN
-// ================================
-
+// Função principal do Tauri
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // Inicializar AppState antes de tudo
+    log::info!("🚀 Iniciando ARKIVE Desktop...");
+    
     log::info!("🔧 Inicializando AppState...");
     let app_state = match AppState::new() {
         Ok(state) => {
@@ -1010,8 +960,6 @@ pub fn run() {
             backup::verify_backup_file,
             backup::list_available_backups,
             download_document,
-            create_document,
-            delete_document,
             desktop::open_file_dialog,
             desktop::save_backup_dialog,
             desktop::open_in_explorer,

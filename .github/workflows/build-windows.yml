@@ -71,14 +71,41 @@ jobs:
     - name: Build frontend
       run: npm run build
       
-    - name: Install Tauri dependencies (optional OCR)
+    - name: Install Tesseract OCR (REQUIRED for PDF scanning)
       shell: powershell
       run: |
-        # Tentar instalar Tesseract OCR (opcional)
-        try {
-          winget install --id UB-Mannheim.TesseractOCR --silent --accept-package-agreements --accept-source-agreements
-        } catch {
-          Write-Host "Tesseract installation failed - OCR will use fallback"
+        Write-Host "📦 Installing Tesseract OCR for PDF scanning..."
+        
+        # Install Tesseract with Portuguese language data
+        winget install --id UB-Mannheim.TesseractOCR --silent --accept-package-agreements --accept-source-agreements
+        
+        if ($LASTEXITCODE -ne 0) {
+          Write-Host "❌ Tesseract installation failed! Trying alternative method..."
+          
+          # Alternative: Direct download and install
+          $tesseractUrl = "https://digi.bib.uni-mannheim.de/tesseract/tesseract-ocr-w64-setup-5.3.3.20231005.exe"
+          $installerPath = "$env:TEMP\tesseract-setup.exe"
+          
+          Write-Host "Downloading Tesseract from $tesseractUrl..."
+          Invoke-WebRequest -Uri $tesseractUrl -OutFile $installerPath
+          
+          Write-Host "Installing Tesseract..."
+          Start-Process -FilePath $installerPath -ArgumentList "/S" -Wait
+          
+          Remove-Item $installerPath -Force
+        }
+        
+        # Verify installation
+        $tesseractPath = "C:\Program Files\Tesseract-OCR\tesseract.exe"
+        if (Test-Path $tesseractPath) {
+          Write-Host "✅ Tesseract OCR installed successfully"
+          & $tesseractPath --version
+          
+          # Add to PATH for build
+          $env:PATH = "C:\Program Files\Tesseract-OCR;$env:PATH"
+          echo "C:\Program Files\Tesseract-OCR" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+        } else {
+          Write-Host "⚠️ Tesseract not found at expected location"
         }
         
     - name: Build Tauri app

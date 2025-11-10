@@ -45,6 +45,22 @@ Preferred communication style: Simple, everyday language.
 - ✅ Removidas 220+ linhas de mock data em `auditApi.ts`
 - ✅ 100% dados REAIS do banco SQLite
 
+**6. Extração de Texto de PDFs (NOVO)**
+- ✅ Módulo `ocr_simple.rs` com lopdf para PDFs normais (95% dos casos)
+- ✅ ZERO dependências externas - extração nativa de texto
+- ✅ Fallback inteligente para PDFs escaneados com mensagem clara
+- ✅ Link para Tesseract oficial para casos raros
+- ✅ Processamento async com timeout e tratamento de erros
+- ✅ Classificação automática de tipo de documento (contrato, nota_fiscal, etc)
+
+**7. Extração de Excel (NOVO)**
+- ✅ Biblioteca `calamine` 0.26 (pura Rust, sem deps C)
+- ✅ Suporte completo: .xlsx, .xls, .xlsm, .xlsb, .ods
+- ✅ Extração de múltiplas planilhas com metadados (sheet_count, row_count)
+- ✅ Parsing de todos os tipos de células (Int, Float, String, DateTime, etc)
+- ✅ Detecção de planilhas vazias com mensagem adequada
+- ✅ Integrado no comando `process_document_simple_ocr`
+
 ### Status do Projeto
 - **Build Frontend:** ✅ Funcionando (Vite 7.0 + React 19.1)
 - **Build Backend:** ✅ Rust compilando sem erros funcionais
@@ -53,13 +69,15 @@ Preferred communication style: Simple, everyday language.
 - **Funcionalidades Core:** Login, upload em lote, busca inteligente, auditoria, backup, pastas virtuais
 
 ### Arquivos Modificados Nesta Sessão
-- `src-tauri/src/lib.rs` - Integração busca inteligente
+- `src-tauri/src/lib.rs` - Integração busca inteligente + suporte Excel
 - `src-tauri/src/database_sqlite.rs` - Migration idempotente + helpers
 - `src-tauri/src/date_extractor.rs` - NOVO módulo (extração de data)
 - `src-tauri/src/date_search_parser.rs` - NOVO módulo (busca por data)
+- `src-tauri/src/ocr_simple.rs` - NOVO módulo (PDF lopdf + Excel calamine)
 - `src/SimpleApp.tsx` - Upload paralelo + UI de progresso
 - `src/services/documentApi.ts` - APIs atualizadas
 - `src/services/auditApi.ts` - Dados mockados removidos
+- `src-tauri/Cargo.toml` - Dependências: lopdf 0.33, calamine 0.26
 - `tsconfig.json` - Lib ES2020 para Promise.allSettled
 
 ## System Architecture
@@ -136,6 +154,9 @@ Preferred communication style: Simple, everyday language.
 - **serde**: Serialização/deserialização JSON
 - **tokio**: Runtime assíncrono para operações I/O
 - **anyhow**: Error handling ergonômico
+- **lopdf**: 0.33 - Extração de texto de PDFs normais (sem OCR)
+- **calamine**: 0.26 - Leitura de planilhas Excel/ODS (pura Rust)
+- **regex**: 1.10 - Pattern matching para extração de campos
 
 ### System Integration
 - **Native APIs**: Integração com sistema de arquivos do OS

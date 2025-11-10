@@ -53,7 +53,13 @@
       },
       "nsis": {
         "displayLanguageSelector": false,
-        "languages": ["English"]
+        "languages": ["English"],
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine",
+        "license": null,
+        "headerImage": null,
+        "sidebarImage": null,
+        "template": null
       }
     }
   },

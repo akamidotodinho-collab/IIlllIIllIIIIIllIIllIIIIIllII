@@ -5,6 +5,9 @@ use std::path::Path;
 use serde::{Serialize, Deserialize};
 use std::collections::HashMap;
 use regex::Regex;
+use tokio::process::Command;
+use lopdf;
+use calamine::{open_workbook_auto, Reader, Sheets, DataType};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SimpleOCRResult {
@@ -114,45 +117,98 @@ impl SimpleOCRProcessor {
         })
     }
 
-    // Processar PDF (texto simples apenas)
+    // Processar PDF com extração de texto inteligente
     pub async fn process_pdf<P: AsRef<Path>>(&self, pdf_path: P) -> Result<SimpleOCRResult, SimpleOCRError> {
         let start_time = std::time::Instant::now();
-        let pdf_path = pdf_path.as_ref();
+        let pdf_path_ref = pdf_path.as_ref();
         
-        log::info!("📄 Processando PDF: {:?}", pdf_path);
+        log::info!("📄 Processando PDF: {:?}", pdf_path_ref);
 
-        // PDF extraction desabilitado - biblioteca não disponível no Windows
-        log::warn!("⚠️ Extração de PDF desabilitada - converta PDF para imagem primeiro");
-        let text = String::new();
+        // Tentar extrair texto embarcado primeiro (PDFs normais)
+        match lopdf::Document::load(pdf_path_ref) {
+            Ok(doc) => {
+                // Verificar se PDF está encriptado
+                if doc.is_encrypted() {
+                    log::warn!("🔒 PDF encriptado detectado");
+                    return Ok(SimpleOCRResult {
+                        extracted_text: String::new(),
+                        document_type: "encrypted_pdf".to_string(),
+                        extracted_fields: HashMap::new(),
+                        confidence_score: 0.0,
+                        processing_method: "pdf_encrypted".to_string(),
+                        processing_time_ms: start_time.elapsed().as_millis(),
+                        error_message: Some("PDF protegido por senha. Desproteja o arquivo antes de processar.".to_string()),
+                    });
+                }
 
-        if text.is_empty() {
-            return Ok(SimpleOCRResult {
-                extracted_text: String::new(),
-                document_type: "scanned_pdf".to_string(),
-                extracted_fields: HashMap::new(),
-                confidence_score: 0.0,
-                processing_method: "pdf_empty_text".to_string(),
-                processing_time_ms: start_time.elapsed().as_millis(),
-                error_message: Some("PDF parece ser escaneado - use conversão para imagem para OCR completo".to_string()),
-            });
+                // Extrair texto de todas as páginas
+                let pages = doc.get_pages();
+                let page_nums: Vec<u32> = pages.keys().cloned().collect();
+                
+                log::debug!("📖 PDF tem {} página(s)", page_nums.len());
+
+                match doc.extract_text(&page_nums) {
+                    Ok(text) => {
+                        let trimmed_text = text.trim();
+                        
+                        if !trimmed_text.is_empty() {
+                            // Sucesso! PDF tem texto embarcado
+                            log::info!("✅ Texto extraído com sucesso: {} caracteres", trimmed_text.len());
+                            
+                            let document_type = self.classify_document_type(trimmed_text);
+                            let extracted_fields = self.extract_fields(trimmed_text);
+                            let confidence_score = self.calculate_confidence(trimmed_text, &extracted_fields);
+
+                            return Ok(SimpleOCRResult {
+                                extracted_text: trimmed_text.to_string(),
+                                document_type,
+                                extracted_fields,
+                                confidence_score,
+                                processing_method: "pdf_text_lopdf".to_string(),
+                                processing_time_ms: start_time.elapsed().as_millis(),
+                                error_message: None,
+                            });
+                        } else {
+                            // PDF sem texto = provavelmente escaneado
+                            log::warn!("⚠️ PDF sem texto embarcado - provavelmente escaneado");
+                        }
+                    }
+                    Err(e) => {
+                        log::warn!("⚠️ Erro ao extrair texto: {:?}", e);
+                    }
+                }
+
+                // PDF parece ser escaneado - orientar usuário
+                Ok(SimpleOCRResult {
+                    extracted_text: String::new(),
+                    document_type: "scanned_pdf".to_string(),
+                    extracted_fields: HashMap::new(),
+                    confidence_score: 0.0,
+                    processing_method: "pdf_scanned_needs_ocr".to_string(),
+                    processing_time_ms: start_time.elapsed().as_millis(),
+                    error_message: Some(
+                        "PDF escaneado detectado (sem texto embarcado).\n\n\
+                        Para processar este tipo de arquivo, instale o Tesseract OCR:\n\
+                        🔗 Download: https://github.com/UB-Mannheim/tesseract/wiki\n\n\
+                        Após instalação, o sistema processará automaticamente PDFs escaneados."
+                            .to_string()
+                    ),
+                })
+            }
+            Err(e) => {
+                // PDF corrompido ou inválido
+                log::error!("❌ Erro ao carregar PDF: {:?}", e);
+                Ok(SimpleOCRResult {
+                    extracted_text: String::new(),
+                    document_type: "invalid_pdf".to_string(),
+                    extracted_fields: HashMap::new(),
+                    confidence_score: 0.0,
+                    processing_method: "pdf_load_failed".to_string(),
+                    processing_time_ms: start_time.elapsed().as_millis(),
+                    error_message: Some(format!("Erro ao ler PDF: {}. Arquivo pode estar corrompido.", e)),
+                })
+            }
         }
-
-        // Analisar texto extraído
-        let document_type = self.classify_document_type(&text);
-        let extracted_fields = self.extract_fields(&text);
-        let confidence_score = self.calculate_confidence(&text, &extracted_fields);
-
-        log::info!("✅ PDF processado: {} caracteres extraídos", text.len());
-
-        Ok(SimpleOCRResult {
-            extracted_text: text,
-            document_type,
-            extracted_fields,
-            confidence_score,
-            processing_method: "pdf_text_extraction".to_string(),
-            processing_time_ms: start_time.elapsed().as_millis(),
-            error_message: None,
-        })
     }
 
     // Verificar se tesseract está disponível
@@ -248,6 +304,107 @@ impl SimpleOCRProcessor {
         }
 
         score.max(0.0).min(1.0)
+    }
+
+    // Processar planilhas Excel (.xlsx, .xls, .xlsm, .xlsb)
+    pub fn process_excel<P: AsRef<Path>>(&self, excel_path: P) -> Result<SimpleOCRResult, SimpleOCRError> {
+        let start_time = std::time::Instant::now();
+        let excel_path_ref = excel_path.as_ref();
+        
+        log::info!("📊 Processando Excel: {:?}", excel_path_ref);
+
+        // Abrir planilha com auto-detecção de formato
+        let mut workbook: Sheets<_> = open_workbook_auto(excel_path_ref)
+            .map_err(|e| SimpleOCRError::ProcessingError(format!("Erro ao abrir Excel: {}", e)))?;
+
+        let mut all_text = String::new();
+        let mut row_count = 0;
+        let mut sheet_count = 0;
+        let mut extracted_values = HashMap::new();
+
+        // Processar todas as planilhas
+        for sheet_name in workbook.sheet_names().to_vec() {
+            sheet_count += 1;
+            log::debug!("📄 Processando planilha: {}", sheet_name);
+
+            match workbook.worksheet_range(&sheet_name) {
+                Some(Ok(range)) => {
+                    all_text.push_str(&format!("\n=== {} ===\n", sheet_name));
+
+                for row in range.rows() {
+                    row_count += 1;
+                    let mut row_text = Vec::new();
+
+                    for cell in row {
+                        let cell_value = match cell {
+                            DataType::Int(i) => i.to_string(),
+                            DataType::Float(f) => f.to_string(),
+                            DataType::String(s) => s.clone(),
+                            DataType::Bool(b) => b.to_string(),
+                            DataType::DateTime(dt) => dt.to_string(),
+                            DataType::Duration(d) => d.to_string(),
+                            DataType::Error(e) => format!("#ERROR: {:?}", e),
+                            DataType::Empty => String::new(),
+                        };
+
+                        if !cell_value.is_empty() {
+                            row_text.push(cell_value);
+                        }
+                    }
+
+                    if !row_text.is_empty() {
+                        all_text.push_str(&row_text.join(" | "));
+                        all_text.push('\n');
+                    }
+                }
+                }
+                Some(Err(e)) => {
+                    log::warn!("⚠️ Erro ao ler planilha '{}': {:?}", sheet_name, e);
+                }
+                None => {
+                    log::debug!("📭 Planilha '{}' não encontrada ou vazia", sheet_name);
+                }
+            }
+        }
+
+        let trimmed_text = all_text.trim();
+
+        if trimmed_text.is_empty() {
+            log::warn!("⚠️ Excel vazio ou sem dados");
+            return Ok(SimpleOCRResult {
+                extracted_text: String::new(),
+                document_type: "excel_vazio".to_string(),
+                extracted_fields: HashMap::new(),
+                confidence_score: 0.0,
+                processing_method: "excel_empty".to_string(),
+                processing_time_ms: start_time.elapsed().as_millis(),
+                error_message: Some("Planilha Excel vazia ou sem dados legíveis".to_string()),
+            });
+        }
+
+        log::info!("✅ Excel processado: {} planilhas, {} linhas, {} caracteres", 
+                  sheet_count, row_count, trimmed_text.len());
+
+        // Metadados
+        extracted_values.insert("sheet_count".to_string(), sheet_count.to_string());
+        extracted_values.insert("row_count".to_string(), row_count.to_string());
+
+        // Classificar e extrair campos
+        let document_type = self.classify_document_type(trimmed_text);
+        let mut extracted_fields = self.extract_fields(trimmed_text);
+        extracted_fields.extend(extracted_values);
+
+        let confidence_score = self.calculate_confidence(trimmed_text, &extracted_fields);
+
+        Ok(SimpleOCRResult {
+            extracted_text: trimmed_text.to_string(),
+            document_type,
+            extracted_fields,
+            confidence_score,
+            processing_method: "excel_calamine".to_string(),
+            processing_time_ms: start_time.elapsed().as_millis(),
+            error_message: None,
+        })
     }
 }
 

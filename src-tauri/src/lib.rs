@@ -503,12 +503,16 @@ async fn process_document_simple_ocr(
                 processor.process_pdf(&file_path).await
                     .map_err(|e| format!("Erro ao processar PDF: {:?}", e))?
             }
+            Some("xlsx") | Some("xls") | Some("xlsm") | Some("xlsb") | Some("ods") => {
+                processor.process_excel(&file_path)
+                    .map_err(|e| format!("Erro ao processar Excel: {:?}", e))?
+            }
             Some("png") | Some("jpg") | Some("jpeg") | Some("tiff") | Some("bmp") => {
                 processor.process_image(&file_path).await
                     .map_err(|e| format!("Erro ao processar imagem: {:?}", e))?
             }
             _ => {
-                return Err("Tipo de arquivo não suportado. Use PDF, PNG, JPG, JPEG, TIFF ou BMP.".to_string());
+                return Err("Tipo de arquivo não suportado. Use PDF, Excel (.xlsx/.xls), PNG, JPG, JPEG, TIFF ou BMP.".to_string());
             }
         };
         

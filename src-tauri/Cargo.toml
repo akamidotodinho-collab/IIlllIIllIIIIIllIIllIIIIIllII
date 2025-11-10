@@ -41,6 +41,8 @@ tempfile = "3.8"
 # tesseract = "0.14"  # Comentado - pode causar erro no Windows
 image = { version = "0.24", features = ["jpeg", "png", "tiff"] }
 # pdf-extract = "0.7"  # Comentado - pode causar erro no Windows
+lopdf = "0.33"  # Extração de texto de PDFs normais (sem Tesseract)
+calamine = "0.26"  # Extração de dados de Excel (.xlsx, .xls, .xlsm)
 regex = "1.10"
 # Note: Removed candle-core dependencies due to system compatibility issues
 # Threading e concorrência

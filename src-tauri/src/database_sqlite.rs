@@ -30,6 +30,8 @@ pub struct Document {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub tags: Vec<String>,
+    pub document_date: Option<String>,
+    pub folder_slug: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,6 +234,49 @@ impl Database {
         conn.execute("CREATE INDEX IF NOT EXISTS idx_audit_logs_sequence_id ON audit_logs(sequence_id)", [])?;
         
         // ==================================================================================
+        // MIGRATIONS - DATE EXTRACTION E FOLDER ORGANIZATION
+        // ==================================================================================
+        
+        // Helper: Verificar se coluna existe usando PRAGMA table_info
+        let column_exists = |table: &str, column: &str| -> bool {
+            let query = format!("PRAGMA table_info({})", table);
+            let mut stmt = match conn.prepare(&query) {
+                Ok(stmt) => stmt,
+                Err(_) => return false,
+            };
+            
+            let rows: Result<Vec<String>, _> = stmt.query_map([], |row| row.get::<_, String>(1)).and_then(|iter| iter.collect());
+            
+            match rows {
+                Ok(columns) => columns.iter().any(|c| c == column),
+                Err(_) => false,
+            }
+        };
+        
+        // Migration 1: Adicionar coluna document_date (nullable para não quebrar docs existentes)
+        if !column_exists("documents", "document_date") {
+            conn.execute("ALTER TABLE documents ADD COLUMN document_date TEXT", [])?;
+            log::info!("✅ Migration: coluna document_date adicionada");
+        } else {
+            log::debug!("⚠️ Coluna document_date já existe, pulando migration");
+        }
+        
+        // Migration 2: Adicionar coluna folder_slug (nullable para não quebrar docs existentes)
+        if !column_exists("documents", "folder_slug") {
+            conn.execute("ALTER TABLE documents ADD COLUMN folder_slug TEXT", [])?;
+            log::info!("✅ Migration: coluna folder_slug adicionada");
+        } else {
+            log::debug!("⚠️ Coluna folder_slug já existe, pulando migration");
+        }
+        
+        // ÍNDICES PARA BUSCA POR DATA E PASTA
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_documents_document_date ON documents(document_date)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_documents_folder_slug ON documents(folder_slug)", [])?;
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_documents_folder_user ON documents(user_id, folder_slug)", [])?;
+        
+        log::info!("📅 Sistema de organização por data e pastas configurado");
+        
+        // ==================================================================================
         // SISTEMA FTS5 COMPLETO - BUSCA FULL-TEXT DE ALTA PERFORMANCE
         // ==================================================================================
         
@@ -418,7 +463,7 @@ impl Database {
                 .map_err(|_| rusqlite::Error::ToSqlConversionFailure(Box::new(std::io::Error::new(std::io::ErrorKind::InvalidData, "Failed to serialize tags"))))?;
                 
             conn.execute(
-                "INSERT INTO documents (id, user_id, name, file_path, file_type, file_size, created_at, updated_at, tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                "INSERT INTO documents (id, user_id, name, file_path, file_type, file_size, created_at, updated_at, tags, document_date, folder_slug) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
                 params![
                     document.id,
                     document.user_id,
@@ -428,7 +473,9 @@ impl Database {
                     document.file_size,
                     document.created_at.to_rfc3339(),
                     document.updated_at.to_rfc3339(),
-                    tags_json
+                    tags_json,
+                    document.document_date,
+                    document.folder_slug
                 ]
             )?;
             Ok(())
@@ -438,7 +485,7 @@ impl Database {
     pub fn get_documents_by_user(&self, user_id: &str) -> SqliteResult<Vec<Document>> {
         self.execute_with_retry(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT id, user_id, name, file_path, file_type, file_size, created_at, updated_at, tags FROM documents WHERE user_id = ?1 ORDER BY created_at DESC"
+                "SELECT id, user_id, name, file_path, file_type, file_size, created_at, updated_at, tags, document_date, folder_slug FROM documents WHERE user_id = ?1 ORDER BY created_at DESC"
             )?;
             
             let document_iter = stmt.query_map([user_id], |row| {
@@ -462,6 +509,8 @@ impl Database {
                         .map_err(|_| rusqlite::Error::InvalidColumnType(7, "updated_at".to_string(), rusqlite::types::Type::Text))?
                         .with_timezone(&Utc),
                     tags,
+                    document_date: row.get(9)?,
+                    folder_slug: row.get(10)?,
                 })
             })?;
             
@@ -1036,6 +1085,132 @@ impl Database {
             conn.execute("INSERT INTO documents_fts(documents_fts) VALUES('rebuild')", [])?;
             log::info!("🔄 Índice de busca FTS5 reconstruído");
             Ok(())
+        })
+    }
+    
+    // ==================================================================================
+    // FOLDER ORGANIZATION - ORGANIZAÇÃO POR PASTAS VIRTUAIS BASEADAS EM DATA
+    // ==================================================================================
+    
+    pub fn get_documents_by_folder(&self, user_id: &str, folder_slug: &str) -> SqliteResult<Vec<Document>> {
+        self.execute_with_retry(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, user_id, name, file_path, file_type, file_size, created_at, updated_at, tags, document_date, folder_slug 
+                 FROM documents 
+                 WHERE user_id = ?1 AND folder_slug = ?2 
+                 ORDER BY document_date DESC, created_at DESC"
+            )?;
+            
+            let document_iter = stmt.query_map(params![user_id, folder_slug], |row| {
+                let created_at_str: String = row.get(6)?;
+                let updated_at_str: String = row.get(7)?;
+                let tags_json: String = row.get(8)?;
+                
+                let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+                
+                Ok(Document {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    name: row.get(2)?,
+                    file_path: row.get(3)?,
+                    file_type: row.get(4)?,
+                    file_size: row.get(5)?,
+                    created_at: DateTime::parse_from_rfc3339(&created_at_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(6, "created_at".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                    updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(7, "updated_at".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                    tags,
+                    document_date: row.get(9)?,
+                    folder_slug: row.get(10)?,
+                })
+            })?;
+            
+            let mut documents = Vec::new();
+            for document in document_iter {
+                documents.push(document?);
+            }
+            
+            log::debug!("📁 Encontrados {} documentos na pasta {}", documents.len(), folder_slug);
+            Ok(documents)
+        })
+    }
+    
+    pub fn get_available_folders(&self, user_id: &str) -> SqliteResult<Vec<(String, i64)>> {
+        self.execute_with_retry(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT folder_slug, COUNT(*) as doc_count 
+                 FROM documents 
+                 WHERE user_id = ?1 AND folder_slug IS NOT NULL 
+                 GROUP BY folder_slug 
+                 ORDER BY folder_slug DESC"
+            )?;
+            
+            let folder_iter = stmt.query_map([user_id], |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(1)?
+                ))
+            })?;
+            
+            let mut folders = Vec::new();
+            for folder in folder_iter {
+                folders.push(folder?);
+            }
+            
+            log::debug!("📂 Encontradas {} pastas virtuais para usuário {}", folders.len(), user_id);
+            Ok(folders)
+        })
+    }
+    
+    pub fn get_documents_by_date_range(
+        &self, 
+        user_id: &str, 
+        start_date: &str, 
+        end_date: &str
+    ) -> SqliteResult<Vec<Document>> {
+        self.execute_with_retry(|conn| {
+            let mut stmt = conn.prepare(
+                "SELECT id, user_id, name, file_path, file_type, file_size, created_at, updated_at, tags, document_date, folder_slug 
+                 FROM documents 
+                 WHERE user_id = ?1 AND document_date >= ?2 AND document_date <= ?3 
+                 ORDER BY document_date DESC, created_at DESC"
+            )?;
+            
+            let document_iter = stmt.query_map(params![user_id, start_date, end_date], |row| {
+                let created_at_str: String = row.get(6)?;
+                let updated_at_str: String = row.get(7)?;
+                let tags_json: String = row.get(8)?;
+                
+                let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+                
+                Ok(Document {
+                    id: row.get(0)?,
+                    user_id: row.get(1)?,
+                    name: row.get(2)?,
+                    file_path: row.get(3)?,
+                    file_type: row.get(4)?,
+                    file_size: row.get(5)?,
+                    created_at: DateTime::parse_from_rfc3339(&created_at_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(6, "created_at".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                    updated_at: DateTime::parse_from_rfc3339(&updated_at_str)
+                        .map_err(|_| rusqlite::Error::InvalidColumnType(7, "updated_at".to_string(), rusqlite::types::Type::Text))?
+                        .with_timezone(&Utc),
+                    tags,
+                    document_date: row.get(9)?,
+                    folder_slug: row.get(10)?,
+                })
+            })?;
+            
+            let mut documents = Vec::new();
+            for document in document_iter {
+                documents.push(document?);
+            }
+            
+            log::debug!("📅 Encontrados {} documentos entre {} e {}", documents.len(), start_date, end_date);
+            Ok(documents)
         })
     }
 }

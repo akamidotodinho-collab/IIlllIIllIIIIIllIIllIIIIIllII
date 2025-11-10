@@ -154,20 +154,67 @@ class DocumentAPI {
     }
   }
 
-  // Criar documento no backend
-  static async createDocument(filePath: string, ocrResult: OCRResult): Promise<{id: string}> {
+  // Criar documento no backend com extração automática de data
+  static async createDocument(filePath: string, ocrResult: OCRResult): Promise<{
+    id: string;
+    document_date?: string;
+    folder_slug?: string;
+    date_confidence: number;
+    date_source: string;
+  }> {
     try {
-      const result = await invoke<{id: string}>('create_document', {
+      const result = await invoke<any>('create_document', {
         filePath,
-        documentType: ocrResult.document_type,
         extractedText: ocrResult.extracted_text,
-        extractedFields: ocrResult.extracted_fields,
-        processingMethod: ocrResult.processing_method
+        documentType: ocrResult.document_type
       });
-      console.log(`📄 Documento criado: ${result.id}`);
+      console.log(`📄 Documento criado: ${result.id} (pasta: ${result.folder_slug}, data: ${result.document_date})`);
       return result;
     } catch (error) {
       console.error('❌ Erro ao criar documento:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  // Obter pastas virtuais disponíveis
+  static async getAvailableFolders(): Promise<Array<{folder_slug: string; document_count: number}>> {
+    try {
+      const result = await invoke<Array<{folder_slug: string; document_count: number}>>('get_available_folders');
+      console.log(`📂 ${result.length} pastas virtuais encontradas`);
+      return result;
+    } catch (error) {
+      console.error('❌ Erro ao obter pastas:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  // Obter documentos de uma pasta específica
+  static async getDocumentsByFolder(folderSlug: string): Promise<Document[]> {
+    try {
+      const result = await invoke<string>('get_documents_by_folder', {
+        folderSlug
+      });
+      const documents = JSON.parse(result);
+      console.log(`📁 ${documents.length} documentos na pasta ${folderSlug}`);
+      return documents;
+    } catch (error) {
+      console.error('❌ Erro ao obter documentos da pasta:', error);
+      throw new Error(String(error));
+    }
+  }
+
+  // Obter documentos por intervalo de datas
+  static async getDocumentsByDateRange(startDate: string, endDate: string): Promise<Document[]> {
+    try {
+      const result = await invoke<string>('get_documents_by_date_range', {
+        startDate,
+        endDate
+      });
+      const documents = JSON.parse(result);
+      console.log(`📅 ${documents.length} documentos entre ${startDate} e ${endDate}`);
+      return documents;
+    } catch (error) {
+      console.error('❌ Erro ao obter documentos por data:', error);
       throw new Error(String(error));
     }
   }

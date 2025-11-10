@@ -10,8 +10,10 @@ mod backup;
 // mod ocr;  // Desabilitado - depende de tesseract
 mod ocr_simple;
 mod desktop;
+mod date_extractor;
 
 use database_sqlite::{Database, User};
+use date_extractor::{DateExtractor, generate_folder_slug};
 // use ocr::{OCRProcessor, ExtractedMetadata, DocumentType};  // Desabilitado
 use ocr_simple::{SimpleOCRResult, create_simple_ocr_processor};
 use std::path::PathBuf;
@@ -637,6 +639,221 @@ async fn get_supported_document_types() -> Result<Vec<String>, String> {
     Ok(ocr_simple::get_simple_supported_types())
 }
 
+// ================================
+// COMANDO CREATE DOCUMENT COM DATE EXTRACTION
+// ================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateDocumentRequest {
+    pub file_path: String,
+    pub extracted_text: String,
+    pub document_type: String,
+    pub extracted_fields: std::collections::HashMap<String, String>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct CreateDocumentResponse {
+    pub id: String,
+    pub name: String,
+    pub document_date: Option<String>,
+    pub folder_slug: Option<String>,
+    pub date_confidence: f32,
+    pub date_source: String,
+}
+
+#[tauri::command]
+async fn create_document(
+    file_path: String,
+    extracted_text: String,
+    document_type: String,
+    state: State<'_, AppState>,
+) -> Result<CreateDocumentResponse, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        log::info!("📄 Criando documento: {}", file_path);
+        
+        // 1. EXTRAÇÃO AUTOMÁTICA DE DATA
+        let date_extractor = DateExtractor::new();
+        let path = std::path::Path::new(&file_path);
+        let filename = path.file_name()
+            .and_then(|name| name.to_str())
+            .unwrap_or("");
+        
+        let date_result = date_extractor.extract_date_auto(filename, &extracted_text);
+        
+        log::info!(
+            "📅 Data extraída: {} (fonte: {:?}, confidence: {:.2})",
+            date_result.value.format("%Y-%m-%d"),
+            date_result.source,
+            date_result.confidence
+        );
+        
+        // 2. GERAR FOLDER SLUG
+        let folder_slug = generate_folder_slug(&date_result.value);
+        let document_date = date_result.value.format("%Y-%m-%d").to_string();
+        
+        // 3. OBTER METADADOS DO ARQUIVO
+        let file_metadata = std::fs::metadata(&file_path)
+            .map_err(|e| format!("Erro ao ler metadados do arquivo: {:?}", e))?;
+        
+        let file_size = file_metadata.len() as i64;
+        let file_type = path.extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        
+        // 4. CRIAR DOCUMENTO NO BANCO
+        let doc_id = Uuid::new_v4().to_string();
+        let now = Utc::now();
+        
+        let document = database_sqlite::Document {
+            id: doc_id.clone(),
+            user_id: user.id.clone(),
+            name: filename.to_string(),
+            file_path: file_path.clone(),
+            file_type: file_type.clone(),
+            file_size,
+            created_at: now,
+            updated_at: now,
+            tags: vec![],
+            document_date: Some(document_date.clone()),
+            folder_slug: Some(folder_slug.clone()),
+        };
+        
+        state.db.create_document(&document)
+            .map_err(|e| format!("Erro ao criar documento no banco: {:?}", e))?;
+        
+        // 5. LOG NA TRILHA DE AUDITORIA
+        let _ = log_audit_event(
+            &state,
+            &user.id,
+            &user.username,
+            "DOCUMENT_CREATE",
+            "DOCUMENT",
+            Some(doc_id.clone()),
+            Some(filename.to_string()),
+            None,
+            Some(serde_json::json!({
+                "file_path": file_path,
+                "document_type": document_type,
+                "document_date": document_date,
+                "folder_slug": folder_slug,
+                "date_source": format!("{:?}", date_result.source),
+                "date_confidence": date_result.confidence,
+                "file_size": file_size,
+            })),
+            true,
+        ).await;
+        
+        log::info!("✅ Documento criado: {} (pasta: {})", doc_id, folder_slug);
+        
+        Ok(CreateDocumentResponse {
+            id: doc_id,
+            name: filename.to_string(),
+            document_date: Some(document_date),
+            folder_slug: Some(folder_slug),
+            date_confidence: date_result.confidence,
+            date_source: format!("{:?}", date_result.source),
+        })
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+// ================================
+// COMANDOS DE ORGANIZAÇÃO POR PASTAS
+// ================================
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct FolderInfo {
+    pub folder_slug: String,
+    pub document_count: i64,
+}
+
+#[tauri::command]
+async fn get_available_folders(
+    state: State<'_, AppState>,
+) -> Result<Vec<FolderInfo>, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        let folders = state.db.get_available_folders(&user.id)
+            .map_err(|e| format!("Erro ao buscar pastas: {:?}", e))?;
+        
+        let response: Vec<FolderInfo> = folders.into_iter().map(|(slug, count)| {
+            FolderInfo {
+                folder_slug: slug,
+                document_count: count,
+            }
+        }).collect();
+        
+        log::debug!("📂 Retornando {} pastas virtuais", response.len());
+        Ok(response)
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+#[tauri::command]
+async fn get_documents_by_folder(
+    folder_slug: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<DocumentResponse>, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        let documents = state.db.get_documents_by_folder(&user.id, &folder_slug)
+            .map_err(|e| format!("Erro ao buscar documentos da pasta: {:?}", e))?;
+        
+        let response: Vec<DocumentResponse> = documents.into_iter().map(|doc| {
+            DocumentResponse {
+                id: doc.id,
+                name: doc.name,
+                size: doc.file_size,
+                file_type: doc.file_type,
+                upload_date: doc.document_date.unwrap_or_else(|| doc.created_at.format("%Y-%m-%d").to_string()),
+                is_active: true,
+                category: doc.folder_slug.unwrap_or_else(|| "Sem pasta".to_string()),
+                preview_available: false,
+            }
+        }).collect();
+        
+        log::debug!("📁 Retornando {} documentos da pasta {}", response.len(), folder_slug);
+        Ok(response)
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
+#[tauri::command]
+async fn get_documents_by_date_range(
+    start_date: String,
+    end_date: String,
+    state: State<'_, AppState>,
+) -> Result<Vec<DocumentResponse>, String> {
+    let authenticated_user = state.authenticated_user.lock().await;
+    if let Some(user) = authenticated_user.as_ref() {
+        let documents = state.db.get_documents_by_date_range(&user.id, &start_date, &end_date)
+            .map_err(|e| format!("Erro ao buscar documentos por data: {:?}", e))?;
+        
+        let response: Vec<DocumentResponse> = documents.into_iter().map(|doc| {
+            DocumentResponse {
+                id: doc.id,
+                name: doc.name,
+                size: doc.file_size,
+                file_type: doc.file_type,
+                upload_date: doc.document_date.unwrap_or_else(|| doc.created_at.format("%Y-%m-%d").to_string()),
+                is_active: true,
+                category: doc.folder_slug.unwrap_or_else(|| "Sem pasta".to_string()),
+                preview_available: false,
+            }
+        }).collect();
+        
+        log::debug!("📅 Retornando {} documentos entre {} e {}", response.len(), start_date, end_date);
+        Ok(response)
+    } else {
+        Err("Usuário não autenticado".to_string())
+    }
+}
+
 // Função para registrar automaticamente logs de auditoria (uso interno)
 pub async fn log_audit_event(
     state: &AppState,
@@ -964,6 +1181,10 @@ pub fn run() {
             // process_document_ocr,  // Desabilitado - requer tesseract
             process_document_simple_ocr,
             get_supported_document_types,
+            create_document,
+            get_available_folders,
+            get_documents_by_folder,
+            get_documents_by_date_range,
             search_documents,
             index_document_for_search,
             get_search_statistics,

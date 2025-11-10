@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Manager, State};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 use chrono::Utc;

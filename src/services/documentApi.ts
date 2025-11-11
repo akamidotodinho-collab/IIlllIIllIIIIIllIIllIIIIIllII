@@ -1,6 +1,7 @@
 // API Service para Sistema de Documentos - ARKIVE
 // Conecta frontend React com backend Tauri/Rust
 import { invoke } from '@tauri-apps/api/core';
+import { showSuccessToast, showErrorToast } from '../utils/toast';
 
 // ================================
 // INTERFACES E TIPOS
@@ -375,13 +376,13 @@ class AppAPI {
   // Mostrar notificação de sucesso
   static showSuccess(message: string): void {
     console.log('✅ ' + message);
-    // TODO: Implementar toast notifications
+    showSuccessToast(message);
   }
 
   // Mostrar erro
   static showError(message: string): void {
     console.error('❌ ' + message);
-    // TODO: Implementar toast notifications
+    showErrorToast(message);
   }
 
   // Formatar data brasileira

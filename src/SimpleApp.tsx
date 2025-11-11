@@ -1,8 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Search, Upload, FileText, Image, Download, Trash2, Plus, Shield, Home, User, LogOut } from 'lucide-react';
+import { Search, Upload, FileText, Image, Download, Trash2, Plus, Shield, Home, User, LogOut, HardDrive } from 'lucide-react';
+import { Toaster } from 'react-hot-toast';
 import AuditTrail from './components/AuditTrail';
 import SearchInterface from './components/SearchInterface';
+import BackupManager from './components/BackupManager';
 import { AuthAPI, DocumentAPI, SearchAPI, StatsAPI, AppAPI, type Document as APIDocument, type User as APIUser, type AppStats } from './services/documentApi';
+import { showSuccessToast, showErrorToast, showLoadingToast, dismissToast } from './utils/toast';
 
 // Interface local para compatibilidade
 interface Document {
@@ -23,7 +26,7 @@ export default function SimpleApp() {
   const [isLoading, setIsLoading] = useState(true);
   
   // Estados para UI
-  const [activeTab, setActiveTab] = useState<'documents' | 'search' | 'audit'>('documents');
+  const [activeTab, setActiveTab] = useState<'documents' | 'search' | 'audit' | 'backups'>('documents');
   const [loginForm, setLoginForm] = useState({ username: '', password: '' });
   const [showLogin, setShowLogin] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(null);
@@ -88,7 +91,7 @@ export default function SimpleApp() {
     
     if (!loginForm.username || !loginForm.password) {
       console.log('❌ Campos vazios');
-      alert('Preencha usuário e senha');
+      showErrorToast('Preencha usuário e senha');
       return;
     }
     
@@ -104,11 +107,11 @@ export default function SimpleApp() {
       setShowLogin(false);
       setLoginForm({ username: '', password: '' });
       
-      alert(`Bem-vindo, ${loggedUser.username}!`);
+      showSuccessToast(`Login realizado com sucesso! Bem-vindo, ${loggedUser.username}!`);
       await loadAppData();
     } catch (error) {
       console.error('❌ Erro no login:', error);
-      alert(`Erro: ${String(error)}`);
+      showErrorToast(`Erro ao fazer login: ${String(error)}`);
     } finally {
       setIsLoading(false);
     }
@@ -189,7 +192,8 @@ export default function SimpleApp() {
 
       setIsLoading(true);
       setUploadProgress({ current: 0, total: selectedFiles.length });
-      AppAPI.showSuccess(`Processando ${selectedFiles.length} arquivo(s) em paralelo...`);
+      
+      const loadingToastId = showLoadingToast(`Processando ${selectedFiles.length} arquivo(s) em paralelo...`);
 
       let processedCount = 0;
       let successCount = 0;
@@ -254,16 +258,19 @@ export default function SimpleApp() {
       // Recarregar lista de documentos
       await loadAppData();
       
+      // Dismiss loading toast
+      dismissToast(loadingToastId);
+      
       // Mensagem final
       if (errorCount === 0) {
-        AppAPI.showSuccess(`✅ ${successCount} documento(s) processado(s) com sucesso!`);
+        showSuccessToast(`${successCount} documento(s) enviado(s) com sucesso!`);
       } else {
-        AppAPI.showSuccess(`⚠️ ${successCount} sucesso, ${errorCount} erro(s)`);
+        showSuccessToast(`${successCount} sucesso, ${errorCount} erro(s)`);
       }
       
     } catch (error) {
       console.error('❌ Erro no upload:', error);
-      AppAPI.showError('Erro ao selecionar ou processar arquivos');
+      showErrorToast('Erro ao selecionar ou processar arquivos');
     } finally {
       setIsLoading(false);
       setUploadProgress(null);
@@ -416,6 +423,30 @@ export default function SimpleApp() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/* Toast Notifications */}
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: {
+            background: 'var(--toast-bg, #333)',
+            color: 'var(--toast-text, #fff)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#fff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
+      
       {/* Header */}
       <header className="bg-white dark:bg-gray-800 shadow-sm border-b">
         <div className="px-6 py-4 flex items-center justify-between">
@@ -481,6 +512,18 @@ export default function SimpleApp() {
                 Auditoria
               </button>
               
+              <button 
+                onClick={() => setActiveTab('backups')}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                  activeTab === 'backups' 
+                    ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-200' 
+                    : 'hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-600 dark:text-gray-400'
+                }`}
+              >
+                <HardDrive className="w-4 h-4" />
+                Backups
+              </button>
+              
               {activeTab === 'documents' && (
                 <button
                   onClick={handleUpload}
@@ -533,6 +576,8 @@ export default function SimpleApp() {
       <main className="p-6">
         {activeTab === 'audit' ? (
           <AuditTrail />
+        ) : activeTab === 'backups' ? (
+          <BackupManager />
         ) : activeTab === 'search' ? (
           <div className="max-w-4xl mx-auto">
             <div className="mb-6">

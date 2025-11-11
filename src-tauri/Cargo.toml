@@ -45,5 +45,3 @@ lopdf = "0.33"  # Extração de texto de PDFs normais (sem Tesseract)
 calamine = "0.26"  # Extração de dados de Excel (.xlsx, .xls, .xlsm)
 regex = "1.10"
 # Note: Removed candle-core dependencies due to system compatibility issues
-# Threading e concorrência
-rayon = "1.8"

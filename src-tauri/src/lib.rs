@@ -1236,6 +1236,8 @@ pub fn run() {
             get_search_statistics,
             backup::verify_backup_file,
             backup::list_available_backups,
+            backup::create_backup_command,
+            backup::restore_backup_command,
             download_document,
             desktop::open_file_dialog,
             desktop::save_backup_dialog,

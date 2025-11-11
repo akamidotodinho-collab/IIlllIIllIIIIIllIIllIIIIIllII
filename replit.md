@@ -61,6 +61,29 @@ Preferred communication style: Simple, everyday language.
 - ✅ Detecção de planilhas vazias com mensagem adequada
 - ✅ Integrado no comando `process_document_simple_ocr`
 
+**8. Sistema de Backup Completo (NOVO)**
+- ✅ UI visual para gerenciar backups (`BackupManager.tsx`)
+- ✅ Lista backups com data/hora, versão, tamanho, checksum
+- ✅ Verificação de integridade (valida ZIP, SQLite, tabelas)
+- ✅ API service completa (`backupApi.ts`)
+- ✅ Cards com badges de status (✓ Verificado, ⚠️ Corrompido)
+- ✅ Tab "Backups" integrado no menu principal
+- ✅ Mensagens em PT-BR com feedback claro
+
+**9. Notificações Toast (NOVO)**
+- ✅ Biblioteca `react-hot-toast` integrada
+- ✅ Toasts em ações principais (login, upload, backup, etc)
+- ✅ Helpers reutilizáveis (`src/utils/toast.ts`)
+- ✅ Tema dark/light mode consistente
+- ✅ Mensagens em português PT-BR
+- ✅ Duração de 3-4 segundos, não invasivos
+- ✅ TODOs substituídos em `documentApi.ts`
+
+**10. Otimização de Dependências**
+- ✅ Removida biblioteca `rayon` não utilizada
+- ✅ Cargo.toml limpo e otimizado
+- ✅ Redução de tamanho do build final
+
 ### Status do Projeto
 - **Build Frontend:** ✅ Funcionando (Vite 7.0 + React 19.1)
 - **Build Backend:** ✅ Rust compilando sem erros funcionais
@@ -74,10 +97,14 @@ Preferred communication style: Simple, everyday language.
 - `src-tauri/src/date_extractor.rs` - NOVO módulo (extração de data)
 - `src-tauri/src/date_search_parser.rs` - NOVO módulo (busca por data)
 - `src-tauri/src/ocr_simple.rs` - NOVO módulo (PDF lopdf + Excel calamine)
-- `src/SimpleApp.tsx` - Upload paralelo + UI de progresso
-- `src/services/documentApi.ts` - APIs atualizadas
+- `src/components/BackupManager.tsx` - NOVO componente (UI de backup)
+- `src/services/backupApi.ts` - NOVO service (API de backup)
+- `src/utils/toast.ts` - NOVO helper (notificações toast)
+- `src/SimpleApp.tsx` - Upload paralelo + UI de progresso + Tab Backups + Toasts
+- `src/services/documentApi.ts` - APIs atualizadas + Toasts
 - `src/services/auditApi.ts` - Dados mockados removidos
-- `src-tauri/Cargo.toml` - Dependências: lopdf 0.33, calamine 0.26
+- `src-tauri/Cargo.toml` - Dependências: lopdf 0.33, calamine 0.26, rayon removido
+- `package.json` - Adicionado react-hot-toast
 - `tsconfig.json` - Lib ES2020 para Promise.allSettled
 
 ## System Architecture
@@ -88,6 +115,7 @@ Preferred communication style: Simple, everyday language.
 - **Build Tool**: Vite 7.0+ para desenvolvimento rápido e otimizações de build
 - **Icons**: Lucide React para iconografia consistente
 - **Routing**: Client-side navigation com estado reativo
+- **Notifications**: react-hot-toast para feedback visual
 
 ### Backend Architecture
 - **Runtime**: Tauri 2.2 framework para aplicações desktop nativas

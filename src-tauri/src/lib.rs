@@ -1104,7 +1104,7 @@ async fn get_search_statistics(
         Ok(serde_json::json!({
             "total_documents": total_docs,
             "indexed_documents": indexed_docs,
-            "indexing_percentage": indexing_percentage,
+            "indexing_pecentage": indexing_percentage,
             "fts5_available": true
         }))
     } else {
@@ -1142,8 +1142,8 @@ async fn download_document(
             &user.username,
             "DOWNLOAD",
             "DOCUMENT",
-            Some(document.id.clone()),
-            Some(document.name.clone()),
+            Some (document.id.clone()),
+            Some (document.name.clone()),
             None,
             Some(serde_json::json!({
                 "file_name": document.name,
@@ -1168,7 +1168,7 @@ fn format_size(bytes: i64) -> String {
     while size >= 1024.0 && unit_index < UNITS.len() - 1 {
         size /= 1024.0;
         unit_index += 1;
-    }
+    } 
     
     format!("{:.1} {}", size, UNITS[unit_index])
 }
@@ -1236,8 +1236,6 @@ pub fn run() {
             get_search_statistics,
             backup::verify_backup_file,
             backup::list_available_backups,
-            backup::create_backup_command,
-            backup::restore_backup_command,
             download_document,
             desktop::open_file_dialog,
             desktop::save_backup_dialog,
@@ -1263,7 +1261,7 @@ pub fn run() {
                 let _ = writeln!(error_file, "\nPossíveis soluções:");
                 let _ = writeln!(error_file, "1. Instalar WebView2: winget install Microsoft.EdgeWebView2Runtime");
                 let _ = writeln!(error_file, "2. Instalar Visual C++: winget install Microsoft.VCRedist.2015+");
-                let _ = writeln!(error_file, "3. Executar como administrador");
+                let _ = writeln!(error_file, "3. execcutar administrador");
             }
         }
         

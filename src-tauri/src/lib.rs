@@ -1173,7 +1173,7 @@ fn format_size(bytes: i64) -> String {
     format!("{:.1} {}", size, UNITS[unit_index])
 }
 
-// Função principal do Tauri
+// Função principal do Taurinnsnvnnzlvsvxjcnvnljknslklkjzvlkjnvjvjauihr238uwjgahsdgslkjknljngzljnlskdjvnjcxnvjnzpiuihvaogçskdfpjsdpomçslmfowmguheryrfhyrhrtlkrkgnluhvpiuahrjsndzlxuivnjewsdghfjna sldgzjxvnm zsjxcvnjvnçaegpHGPNEJNFF\JLNCLMNMA  IAHFNASHGASHGLKLAJIUHjlnguhuegrkjbpqiutr98y1345uthrbbq977ahge79aryurht98qgghutisdfngyrinvdmgcxkpewflsdpgrlfvçplgkfnogajrgnu
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     log::info!("🚀 Iniciando ARKIVE Desktop...");
@@ -1264,7 +1264,7 @@ pub fn run() {
                 let _ = writeln!(error_file, "3. execcutar administrador");
             }
         }
-        
+        b
         std::process::exit(1);
     }
 }

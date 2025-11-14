@@ -4,7 +4,7 @@ expertMode = true
 
 [nix]
 channel = "stable-25_05"
-packages = ["glib", "gtk3", "gdk-pixbuf", "cairo", "pango", "atk", "pkg-config"]
+packages = ["glib", "gtk3", "gdk-pixbuf", "cairo", "pango", "atk", "pkg-config", "imagemagick"]
 
 [workflows]
 runButton = "Project"
@@ -33,6 +33,10 @@ outputType = "webview"
 [[ports]]
 localPort = 5000
 externalPort = 80
+
+[[ports]]
+localPort = 35979
+externalPort = 3001
 
 [[ports]]
 localPort = 46577

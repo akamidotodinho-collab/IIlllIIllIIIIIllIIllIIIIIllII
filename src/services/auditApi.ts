@@ -147,7 +147,7 @@ export class AuditApi {
     }
 
     try {
-      return await tauriInvoke('export_audit_logs', options as Record<string, unknown>) as ComplianceReport;
+      return await tauriInvoke('export_audit_logs', options as unknown as Record<string, unknown>) as ComplianceReport;
     } catch (error) {
       console.error('Erro ao exportar logs via Tauri:', error);
       throw new Error(`Falha ao exportar logs de auditoria: ${error}`);

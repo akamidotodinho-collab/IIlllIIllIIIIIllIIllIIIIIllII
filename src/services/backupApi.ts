@@ -47,7 +47,7 @@ class BackupAPI {
   static async verifyBackup(backupPath: string): Promise<BackupInfo> {
     try {
       const result = await invoke<BackupInfo>('verify_backup_file', {
-        backupPath
+        backup_path: backupPath
       });
       
       console.log(`✅ Backup verificado: ${backupPath}`);
@@ -73,7 +73,7 @@ class BackupAPI {
       
       // Chamar comando Tauri para criar backup
       await invoke<BackupInfo>('create_backup_command', {
-        backupPath: savePath
+        backup_path: savePath
       });
       
       console.log(`✅ Backup criado com sucesso: ${savePath}`);
@@ -91,7 +91,7 @@ class BackupAPI {
       
       // Chamar comando Tauri para restaurar backup
       await invoke<void>('restore_backup_command', {
-        backupPath
+        backup_path: backupPath
       });
       
       console.log(`✅ Backup restaurado com sucesso de: ${backupPath}`);

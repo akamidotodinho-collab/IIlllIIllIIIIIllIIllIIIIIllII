@@ -90,12 +90,12 @@ export class AuditApi {
     try {
       const response = await tauriInvoke('get_audit_logs', {
         action: filters.action || null,
-        resourceType: filters.resourceType || null,
-        userId: filters.userId || null,
-        resourceId: filters.resourceId || null,
-        startDate: filters.startDate || null,
-        endDate: filters.endDate || null,
-        daysBack: filters.daysBack || 7,
+        resource_type: filters.resourceType || null,
+        user_id: filters.userId || null,
+        resource_id: filters.resourceId || null,
+        start_date: filters.startDate || null,
+        end_date: filters.endDate || null,
+        days_back: filters.daysBack || 7,
         page: filters.page || 1,
         limit: filters.limit || 50
       });

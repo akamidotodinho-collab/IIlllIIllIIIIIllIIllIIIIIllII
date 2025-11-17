@@ -143,7 +143,7 @@ class DocumentAPI {
   static async processDocumentOCR(filePath: string): Promise<OCRResult> {
     try {
       const result = await invoke<string>('process_document_simple_ocr', {
-        filePath
+        file_path: filePath
       });
       
       const ocrResult = JSON.parse(result);
@@ -165,9 +165,9 @@ class DocumentAPI {
   }> {
     try {
       const result = await invoke<any>('create_document', {
-        filePath,
-        extractedText: ocrResult.extracted_text,
-        documentType: ocrResult.document_type
+        file_path: filePath,
+        extracted_text: ocrResult.extracted_text,
+        document_type: ocrResult.document_type
       });
       console.log(`📄 Documento criado: ${result.id} (pasta: ${result.folder_slug}, data: ${result.document_date})`);
       return result;
@@ -193,7 +193,7 @@ class DocumentAPI {
   static async getDocumentsByFolder(folderSlug: string): Promise<Document[]> {
     try {
       const result = await invoke<string>('get_documents_by_folder', {
-        folderSlug
+        folder_slug: folderSlug
       });
       const documents = JSON.parse(result);
       console.log(`📁 ${documents.length} documentos na pasta ${folderSlug}`);
@@ -208,8 +208,8 @@ class DocumentAPI {
   static async getDocumentsByDateRange(startDate: string, endDate: string): Promise<Document[]> {
     try {
       const result = await invoke<string>('get_documents_by_date_range', {
-        startDate,
-        endDate
+        start_date: startDate,
+        end_date: endDate
       });
       const documents = JSON.parse(result);
       console.log(`📅 ${documents.length} documentos entre ${startDate} e ${endDate}`);
@@ -223,7 +223,7 @@ class DocumentAPI {
   // Deletar documento do backend
   static async deleteDocument(documentId: string): Promise<void> {
     try {
-      await invoke('delete_document', { documentId });
+      await invoke('delete_document', { document_id: documentId });
       console.log(`🗑️ Documento ${documentId} excluído com sucesso`);
     } catch (error) {
       console.error('❌ Erro ao deletar documento:', error);
@@ -272,7 +272,7 @@ class SearchAPI {
       const result = await invoke<SearchResponse>('search_documents', {
         query,
         limit: limit || 20,
-        useFts: useFTS !== false // default true
+        use_fts: useFTS !== false // default true
       });
       
       console.log(`🔍 Busca "${query}" retornou ${result.total_found} resultados (${result.search_time_ms}ms)`);
@@ -292,10 +292,10 @@ class SearchAPI {
   ): Promise<boolean> {
     try {
       const result = await invoke<boolean>('index_document_for_search', {
-        documentId,
-        extractedText,
-        documentType,
-        extractedFields
+        document_id: documentId,
+        extracted_text: extractedText,
+        document_type: documentType,
+        extracted_fields: extractedFields
       });
       
       if (result) {

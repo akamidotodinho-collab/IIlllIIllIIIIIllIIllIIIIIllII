@@ -823,6 +823,7 @@ async fn get_documents_by_folder(
         }).collect();
         
         log::debug!("📁 Retornando {} documentos da pasta {}", response.len(), folder_slug);
+        
         Ok(response)
     } else {
         Err("Usuário não autenticado".to_string())
@@ -1261,10 +1262,11 @@ pub fn run() {
                 let _ = writeln!(error_file, "\nPossíveis soluções:");
                 let _ = writeln!(error_file, "1. Instalar WebView2: winget install Microsoft.EdgeWebView2Runtime");
                 let _ = writeln!(error_file, "2. Instalar Visual C++: winget install Microsoft.VCRedist.2015+");
-                let _ = writeln!(error_file, "3. execcutar administrador");
+                let _ = writeln!(error_file, "3. execcutar administrador ");
             }
         }
-        b
+
+        
         std::process::exit(1);
     }
 }
